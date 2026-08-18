@@ -77,6 +77,39 @@ describe('handleEmbedCall', () => {
     expect(imagePos).toBeLessThan(table2Pos);
   });
 
+  it('should locate target table by rawTableMarkdown identity when tables are shifted', async () => {
+    const rawTargetTable = `| Target Col |\n|---|\n| Target Val |`;
+    const initialMarkdown = `| Target Col |\n|---|\n| Target Val |`;
+    // A new table was prepended before saving
+    const modifiedFreshMarkdown = `| Prepended Table |\n|---|\n| New Val |\n\n${rawTargetTable}`;
+
+    mockApp.getNoteContent
+      .mockResolvedValueOnce(initialMarkdown)
+      .mockResolvedValueOnce(modifiedFreshMarkdown);
+
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart.png')
+    });
+
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 0, // stale index 0 would point to Prepended Table, but rawTableMarkdown points to Target Table
+      rawTableMarkdown: rawTargetTable
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.replaceNoteContent).toHaveBeenCalled();
+    const replacedContent = mockApp.replaceNoteContent.mock.calls[0][1];
+    
+    // Image must be inserted directly above Target Table, NOT above Prepended Table
+    const prependedPos = replacedContent.indexOf('| Prepended Table |');
+    const imagePos = replacedContent.indexOf('https://images.amplenote.com/chart.png');
+    const targetPos = replacedContent.indexOf('| Target Col |');
+    expect(prependedPos).toBeLessThan(imagePos);
+    expect(imagePos).toBeLessThan(targetPos);
+  });
+
   it('should abort saveImageToNote safely if the note content changes concurrently and target table cannot be verified', async () => {
     const initialMarkdown = `| Table 1 Col |\n|---|\n| T1 |`;
     // First read returns initialMarkdown, second read after attachMedia returns completely changed content without tables
@@ -94,6 +127,128 @@ describe('handleEmbedCall', () => {
       tableIndex: 0
     });
 
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('modified during save');
+    expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();
+  });
+
+  it('should abort saveImageToNote when note changes concurrently and raw table is no longer present, preventing write above wrong table', async () => {
+    const initialMarkdown = `# Section 1\n\n| Table A |\n|---|\n| 1 |\n\n# Section 2\n\n| Table B |\n|---|\n| 2 |`;
+    // Note changed concurrently: Table X was inserted at top and Table B was edited/removed
+    const freshModifiedMarkdown = `# Section 0\n\n| Table X |\n|---|\n| 0 |\n\n# Section 1\n\n| Table A |\n|---|\n| 1 |`;
+    
+    mockApp.getNoteContent
+      .mockResolvedValueOnce(initialMarkdown)
+      .mockResolvedValueOnce(freshModifiedMarkdown);
+
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart.png')
+    });
+
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 1, // Stale index points to Table A in fresh markdown, but raw table was Table B
+      rawTableMarkdown: `| Table B |\n|---|\n| 2 |`
+    });
+
+    // Must abort and MUST NOT write above Table A
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('modified during save');
+    expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();
+  });
+
+  it('should correctly disambiguate duplicate identical tables and insert image above the selected occurrence', async () => {
+    const duplicateTableMarkdown = `| Item | Score |\n|---|---|\n| Alpha | 100 |`;
+    const fullMarkdown = `# Q1 Results\n\n${duplicateTableMarkdown}\n\n# Q2 Results\n\n${duplicateTableMarkdown}`;
+
+    mockApp.getNoteContent.mockResolvedValue(fullMarkdown);
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart-q2.png')
+    });
+
+    // Target the second duplicate table (index 1)
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 1,
+      rawTableMarkdown: duplicateTableMarkdown
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.replaceNoteContent).toHaveBeenCalled();
+    const replaced = mockApp.replaceNoteContent.mock.calls[0][1];
+    
+    const firstTablePos = replaced.indexOf('# Q1 Results');
+    const secondHeaderPos = replaced.indexOf('# Q2 Results');
+    const imagePos = replaced.indexOf('https://images.amplenote.com/chart-q2.png');
+    
+    // Image must be placed after Q2 Results heading and before second table, NOT in Q1
+    expect(imagePos).toBeGreaterThan(secondHeaderPos);
+    expect(imagePos).toBeGreaterThan(firstTablePos);
+  });
+
+  it('should correctly insert image above the second identical table when preceded by non-duplicate tables (Table A, B, C, C at index 3)', async () => {
+    const tableA = `| Table A |\n|---|\n| Val A |`;
+    const tableB = `| Table B |\n|---|\n| Val B |`;
+    const tableC = `| Table C Duplicate |\n|---|\n| Val C |`;
+    const fullMarkdown = `# Section A\n\n${tableA}\n\n# Section B\n\n${tableB}\n\n# Section C1\n\n${tableC}\n\n# Section C2\n\n${tableC}`;
+
+    mockApp.getNoteContent.mockResolvedValue(fullMarkdown);
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart-c2.png')
+    });
+
+    // Table 0 = A, Table 1 = B, Table 2 = C1, Table 3 = C2 (selected: index 3)
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 3,
+      rawTableMarkdown: tableC
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.replaceNoteContent).toHaveBeenCalled();
+    const replaced = mockApp.replaceNoteContent.mock.calls[0][1];
+
+    const posSecC1 = replaced.indexOf('# Section C1');
+    const posSecC2 = replaced.indexOf('# Section C2');
+    const posImg = replaced.indexOf('https://images.amplenote.com/chart-c2.png');
+
+    // Image MUST be after Section C2 heading and BEFORE the second Table C, NOT above Section C1 or Table A/B
+    expect(posImg).toBeGreaterThan(posSecC2);
+    expect(posImg).toBeGreaterThan(posSecC1);
+  });
+
+  it('should abort saveImageToNote when note changes concurrently and multiple identical tables exist, even if stale index matches identical table (TOCTOU guard)', async () => {
+    const tableA = `| Table A |\n|---|\n| Val A |`;
+    const tableX = `| Table X |\n|---|\n| Val X |`;
+    const tableC = `| Table C Duplicate |\n|---|\n| Val C |`;
+
+    // Original: Table A (0), Table C (1), Table C (2)
+    const initialMarkdown = `# Section A\n\n${tableA}\n\n# Section C1\n\n${tableC}\n\n# Section C2\n\n${tableC}`;
+    
+    // Concurrent edit: Table X was inserted at index 1 -> note is now Table A (0), Table X (1), Table C (2), Table C (3)
+    const freshModifiedMarkdown = `# Section A\n\n${tableA}\n\n# Section X\n\n${tableX}\n\n# Section C1\n\n${tableC}\n\n# Section C2\n\n${tableC}`;
+
+    mockApp.getNoteContent
+      .mockResolvedValueOnce(initialMarkdown)
+      .mockResolvedValueOnce(freshModifiedMarkdown);
+
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart-c.png')
+    });
+
+    // User was targeting Table C at index 2 (the second C in initialMarkdown).
+    // In freshModifiedMarkdown, index 2 is now the FIRST C!
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 2,
+      rawTableMarkdown: tableC
+    });
+
+    // Because noteChanged is true and matchingTableIndices > 1, it MUST abort and NOT write above the wrong C!
     expect(res.success).toBe(false);
     expect(res.error).toContain('modified during save');
     expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();

@@ -14,7 +14,12 @@ The plugin operates as a hybrid bridge application:
 Handles bidirectional communication between the iframe embed and the Amplenote runtime:
 - `openNote`: Uses `app.navigate` to jump to a note URL.
 - `refreshData`: Fetches the active note via `app.findNote({ uuid })` / `app.getNoteContent`, extracts structured markdown tables, and returns them to the embed.
-- `saveImageToNote`: Reads the active note's content freshly immediately before replacement to prevent lost updates, locates the specific table line index, attaches the image to Amplenote CDN media (`note.attachMedia`), and uses `app.replaceNoteContent` to safely inject a markdown image tag (`![]()`) above the table. Attachment errors are handled distinctly with fallback alerts.
+- `saveImageToNote`: High-integrity image insertion with strict concurrency and table-identity verification:
+  - **Absolute Table Scanning**: Scans `freshContent` into structured table entries (`foundTables = [{ startLine, raw }]`), preserving exact line numbers and content.
+  - **Dual-Path Concurrency Decision Tree**:
+    - **Unchanged Note (`!noteChanged`)**: Positional structural identity is reliable. Matches table by absolute `tableIndex` and verifies `rawTableMarkdown`, safely handling duplicate identical tables at distinct positions.
+    - **Changed Note (`noteChanged`)**: Positional identity is discarded. Requires an unambiguous, unique content match (`matchingTableIndices.length === 1`). If zero or multiple duplicate matches exist after a concurrent edit, the operation safely aborts to prevent misplacing the image above the wrong table.
+  - **Media Attachment**: Uploads the PNG chart to Amplenote CDN media (`note.attachMedia`), handles errors distinctly, and uses `app.replaceNoteContent` to inject `![]()` markdown directly above the target table.
 - `copyTablesToNewNote`: Creates a new note via `app.createNote` and populates it with all parsed markdown tables.
 - `saveState` & `getState`: Persists and restores dashboard UI state with **Per-Note State Isolation** (`version: 1, notes: { [noteUUID]: state }`).
 
@@ -25,7 +30,7 @@ These are serialized into a JSON payload object injected into the HTML document 
 ### 3. The Interactive Dashboard (`lib/ui/htmlTemplate.js`)
 A responsive 3-pane data studio featuring:
 - **Script Loader & State Machine**: Sequentially loads `Chart.js`, `chartjs-plugin-datalabels`, `hammer.js`, and `chartjs-plugin-zoom` with state tracking (`window._chartScriptsState: "loading" | "ready" | "failed"`). Dispatches `chartsReady` on completion and `chartsError` on CDN failure, gracefully notifying users without infinite loops.
-- **Per-Note State Hydration & Persistence**: Decodes the injected payload and hydrates the local `state` scoped to `currentNoteUUID` in both `localStorage` and `app.setSetting`. Snapshot cloning (`JSON.parse(JSON.stringify(state))`) prevents asynchronous mutation races.
+- **Per-Note State Hydration & Persistence**: Decodes the injected payload and hydrates the local `state` scoped to `currentNoteUUID` in both `localStorage` and `app.setSetting`. Includes strict input sanitization (`Number.isInteger` bounds checks for `activeTableIndex >= 0`, `selectedXIndex >= -1`, and filtering `selectedYIndices` against negative or invalid indices). Snapshot cloning (`JSON.parse(JSON.stringify(state))`) prevents asynchronous mutation races.
 - **Comprehensive Numeric Cell Parser (`parseNumericCell`)**:
   - Strips HTML tags, Markdown link syntax `[100](url)`, and styling (`**`, `*`, `_`, `~`, `==`, `` ` ``).
   - Handles accounting negatives `(1,234.50)` $\to$ `-1234.50`.

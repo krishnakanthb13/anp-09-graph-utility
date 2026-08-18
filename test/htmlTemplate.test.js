@@ -61,5 +61,38 @@ describe('buildChartHtml', () => {
       }).not.toThrow();
     });
   });
+
+  it('should accurately match and replace payload in interactive HTML export regex', () => {
+    const originalHtml = buildChartHtml({
+      cleanedContent: '| Category | Amount |\n|---|---|\n| Sales | 500 |',
+      noteName: 'Revenue & Profit <2026>',
+      noteUUID: 'rev-uuid-1'
+    });
+
+    // Verify initial payload contains raw noteName without double HTML encoding
+    const initialPayloadMatch = originalHtml.match(/<script type="application\/json" id="plugin-payload">([\s\S]*?)<\/script>/);
+    expect(initialPayloadMatch).toBeTruthy();
+    const initialPayload = JSON.parse(initialPayloadMatch[1]);
+    expect(initialPayload.noteName).toBe('Revenue & Profit <2026>');
+
+    // Emulate client-side interactive HTML export payload replacement
+    const payloadRegex = /(<script type="application\/json" id="plugin-payload">)[\s\S]*?(<\/script>)/;
+    expect(payloadRegex.test(originalHtml)).toBe(true);
+
+    const updatedPayload = {
+      ...initialPayload,
+      noteName: 'Updated Custom Dashboard'
+    };
+    const updatedJson = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
+    const replacedHtml = originalHtml.replace(
+      payloadRegex,
+      `$1\n    ${updatedJson}\n  $2`
+    );
+
+    const updatedPayloadMatch = replacedHtml.match(/<script type="application\/json" id="plugin-payload">([\s\S]*?)<\/script>/);
+    expect(updatedPayloadMatch).toBeTruthy();
+    const parsedUpdated = JSON.parse(updatedPayloadMatch[1]);
+    expect(parsedUpdated.noteName).toBe('Updated Custom Dashboard');
+  });
 });
 

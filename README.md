@@ -24,7 +24,7 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
 - 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers, escaped pipes (`\|`), and preserved column structure without modifying source markdown.
 - 💾 **Export & Save Options**:
-  - Insert chart snapshot directly above the active table in your note (with stale-content overwrite protection).
+  - Insert chart snapshot directly above the active table in your note (with absolute table scanning, duplicate table disambiguation, and concurrent modification protection).
   - 1-click Copy chart image to clipboard.
   - Download high-res PNG image.
   - Download self-contained offline Interactive HTML Dashboard (preserves your exact chart state/theme).

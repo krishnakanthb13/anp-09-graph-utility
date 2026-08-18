@@ -1,3 +1,11 @@
+## v0.0.15 (2026-08-18)
+### 🛡️ Duplicate-Table Disambiguation & Stale-Index Concurrency Protection
+- **Absolute Table Scanning**: Refactored `saveImageToNote` from index-subset matching to full linear note table scanning (`foundTables = [{ startLine, raw }]`), accurately mapping every table's exact structural position.
+- **Duplicate Identical Table Resolution**: Disambiguates duplicate identical tables at distinct note positions (e.g. Table A, B, C, C selecting 2nd C) with 100% precision.
+- **Strict TOCTOU & Stale-Index Collision Guard**: When a concurrent note modification is detected (`initialContent !== freshContent`), absolute table indices are completely bypassed. The algorithm requires an unambiguous unique content match (`matchingTableIndices.length === 1`). If zero or multiple duplicate matches exist after a concurrent edit, the operation safely aborts to protect note integrity.
+- **State Hydration Bounds Validation**: Hardened dashboard state hydration with strict integer and bounds checks (`activeTableIndex >= 0`, `selectedXIndex >= -1`, and filtered non-negative `selectedYIndices`).
+- **Comprehensive Regression Test Suite**: Added dedicated regression tests for shifted tables, multi-duplicate sequences, and concurrent modification TOCTOU abort paths (43/43 plugin tests, 251/251 workspace tests passing).
+
 ## v0.0.14 (2026-08-18)
 ### 🛡️ Production Hardening & Concurrency Safety
 - **Optimistic Concurrency on Image Saves**: `saveImageToNote` now snapshots initial note content and performs optimistic concurrency checks against latest content, safely aborting if the note was concurrently modified or the target table shifted during image processing.

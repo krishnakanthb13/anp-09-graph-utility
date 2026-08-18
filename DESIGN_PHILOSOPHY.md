@@ -35,5 +35,11 @@ Data trapped inside a single proprietary view is limited. We believe users shoul
 - **Structured CSV & MD**: Instantly exports all tables for spreadsheet analysis or markdown backup.
 - **Direct Note Insertion**: Burns high-resolution PNG chart snapshots above the relevant markdown table inside Amplenote notes (with stale-content overwrite protection) for long-term review.
 
+### 5. Integrity First & Conservative Concurrency
+When interacting with active notes, data integrity is paramount:
+- **Never Guess on Mutation**: If a note is modified concurrently while a chart image is being uploaded, the plugin refuses to blindly trust stale table indices or positional guesses.
+- **Explicit Invariant**: Unchanged notes use structural positional matching; modified notes require an unambiguous unique content match. If duplicate identical tables exist after a concurrent shift, the operation safely aborts with transparent user feedback rather than writing above the wrong table.
+- **Input Sanitization**: Persisted states, table indices, and axis selections are bounded and validated against real table dimensions to prevent state corruption.
+
 ## Evolving Goals
 As the plugin evolves, the focus remains strictly on **Visualization and Analysis**, not note editing. We aim to be the most expressive, reliable way to *see* and *understand* the structured data you write, preserving Amplenote's strength as an agile writing environment.

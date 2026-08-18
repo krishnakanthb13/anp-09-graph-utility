@@ -511,22 +511,68 @@ async function handleEmbedCall(app, actionName, payload = {}) {
           };
         }
         const lines = freshContent.split("\n");
-        let currentTblIdx = -1;
+        const foundTables = [];
         let inTable = false;
-        let targetLine = -1;
+        let currentStartLine = -1;
+        let currentTableLines = [];
         for (let i = 0; i < lines.length; i++) {
           const trimmed = lines[i].trim();
           if (trimmed.startsWith("|")) {
             if (!inTable) {
-              currentTblIdx++;
               inTable = true;
-              if (currentTblIdx === tableIndex) {
-                targetLine = i;
-                break;
-              }
+              currentStartLine = i;
+              currentTableLines = [lines[i]];
+            } else {
+              currentTableLines.push(lines[i]);
             }
           } else {
-            inTable = false;
+            if (inTable) {
+              foundTables.push({
+                startLine: currentStartLine,
+                raw: currentTableLines.join("\n").trim()
+              });
+              inTable = false;
+              currentStartLine = -1;
+              currentTableLines = [];
+            }
+          }
+        }
+        if (inTable) {
+          foundTables.push({
+            startLine: currentStartLine,
+            raw: currentTableLines.join("\n").trim()
+          });
+        }
+        const normalizedRaw = (rawTableMarkdown || "").trim();
+        const noteChanged = initialContent !== freshContent;
+        let targetLine = -1;
+        if (!noteChanged) {
+          if (tableIndex >= 0 && tableIndex < foundTables.length) {
+            if (!normalizedRaw || foundTables[tableIndex].raw === normalizedRaw) {
+              targetLine = foundTables[tableIndex].startLine;
+            }
+          }
+        } else {
+          if (normalizedRaw) {
+            const matchingTableIndices = [];
+            for (let idx = 0; idx < foundTables.length; idx++) {
+              if (foundTables[idx].raw === normalizedRaw) {
+                matchingTableIndices.push(idx);
+              }
+            }
+            if (matchingTableIndices.length === 1) {
+              targetLine = foundTables[matchingTableIndices[0]].startLine;
+            } else {
+              return {
+                success: false,
+                error: mediaAttached ? "Image uploaded, but the note was modified during save and the target table could not be safely verified. Please retry." : "Note was modified during save. Please retry."
+              };
+            }
+          } else {
+            return {
+              success: false,
+              error: mediaAttached ? "Image uploaded, but the note was modified during save and the target table could not be verified. Please retry." : "Note was modified during save. Please retry."
+            };
           }
         }
         let updatedContent = "";
@@ -537,16 +583,15 @@ async function handleEmbedCall(app, actionName, payload = {}) {
             ...lines.slice(targetLine)
           ];
           updatedContent = newLines.join("\n");
-        } else if (rawTableMarkdown && freshContent.includes(rawTableMarkdown)) {
-          updatedContent = freshContent.replace(rawTableMarkdown, `${imageBlock}${rawTableMarkdown}`);
         } else {
-          if (initialContent !== freshContent) {
+          if (noteChanged) {
             return {
               success: false,
-              error: mediaAttached ? "Image uploaded, but the note was modified during save and the target table could not be verified. Please retry." : "Note was modified during save. Please retry."
+              error: mediaAttached ? "Image uploaded, but target table could not be verified in modified note. Please retry." : "Note was modified during save. Please retry."
             };
           }
-          updatedContent = `${imageBlock}
+          updatedContent = `${imageBlock.trim()}
+
 ${freshContent}`;
         }
         try {
@@ -613,10 +658,9 @@ function buildChartHtml({
   savedState = {}
 }) {
   const safeName = escapeHTML(noteName || "Graph Utility");
-  const safeUUID = escapeHTML(noteUUID || "");
   const payloadObj = {
-    noteUUID: safeUUID,
-    noteName: safeName,
+    noteUUID: noteUUID || "",
+    noteName: noteName || "Graph Utility",
     noteTags: noteTags || [],
     cleanedContent: cleanedContent || "",
     transposeContent: transposeContent || "",
@@ -2005,9 +2049,11 @@ function buildChartHtml({
             if (typeof source.showLegend === 'boolean') state.showLegend = source.showLegend;
             if (typeof source.showDataLabels === 'boolean') state.showDataLabels = source.showDataLabels;
             if (source.legendPos) state.legendPos = source.legendPos;
-            if (typeof source.activeTableIndex === 'number') state.activeTableIndex = source.activeTableIndex;
-            if (typeof source.selectedXIndex === 'number') state.selectedXIndex = source.selectedXIndex;
-            if (Array.isArray(source.selectedYIndices)) state.selectedYIndices = source.selectedYIndices;
+            if (Number.isInteger(source.activeTableIndex) && source.activeTableIndex >= 0) state.activeTableIndex = source.activeTableIndex;
+            if (Number.isInteger(source.selectedXIndex) && source.selectedXIndex >= -1) state.selectedXIndex = source.selectedXIndex;
+            if (Array.isArray(source.selectedYIndices)) {
+              state.selectedYIndices = source.selectedYIndices.filter(idx => Number.isInteger(idx) && idx >= 0);
+            }
             if (typeof source.leftPanelCollapsed === 'boolean') state.leftPanelCollapsed = source.leftPanelCollapsed;
             if (typeof source.rightPanelCollapsed === 'boolean') state.rightPanelCollapsed = source.rightPanelCollapsed;
           }
@@ -2643,10 +2689,12 @@ function buildChartHtml({
               return {
                 type: 'scatter',
                 label: seriesName,
-                data: rawValues.map((v, i) => ({
-                  x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
-                  y: v !== null ? v : 0
-                })),
+                data: rawValues
+                  .map((v, i) => ({
+                    x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
+                    y: v
+                  }))
+                  .filter(pt => pt.y !== null && typeof pt.y === 'number'),
                 backgroundColor: color,
                 borderColor: color,
                 pointRadius: 6
@@ -2657,11 +2705,13 @@ function buildChartHtml({
               return {
                 type: 'bubble',
                 label: seriesName,
-                data: rawValues.map((v, i) => ({
-                  x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
-                  y: v !== null ? v : 0,
-                  r: Math.min(25, Math.max(5, Math.abs(v !== null ? v : 10) / 4))
-                })),
+                data: rawValues
+                  .map((v, i) => ({
+                    x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
+                    y: v,
+                    r: Math.min(25, Math.max(5, Math.abs(v !== null ? v : 10) / 4))
+                  }))
+                  .filter(pt => pt.y !== null && typeof pt.y === 'number'),
                 backgroundColor: color + '88',
                 borderColor: color
               };
@@ -3217,7 +3267,7 @@ function buildChartHtml({
           };
           
           const updatedJson = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
-          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\\\s\\\\S]*?(<\\\\/script>)');
+          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\s\\S]*?(<\\/script>)');
           htmlContent = htmlContent.replace(
             payloadRegex,
             '$1' + String.fromCharCode(10) + '    ' + updatedJson + String.fromCharCode(10) + '  $2'
@@ -3246,7 +3296,7 @@ function buildChartHtml({
           showToast('Markdown Tables downloaded (.md)');
         });
 
-        // 3. Download all Tables - CSV
+        // 3. Download all Tables - CSV (Clean RFC 4180 Format)
         document.getElementById('downloadAllTablesCSVBtn')?.addEventListener('click', () => {
           if (parsedTables.length === 0) {
             showToast('No tables available to export.');
@@ -3254,13 +3304,11 @@ function buildChartHtml({
           }
           const csvChunks = [];
           parsedTables.forEach((tbl) => {
-            csvChunks.push('# ' + (tbl.displayName || tbl.baseName || 'Table'));
             const headerLine = tbl.headers.map(h => '"' + (h || '').replace(/"/g, '""') + '"').join(',');
             const rowLines = tbl.dataRows.map(row => row.map(cell => '"' + (cell || '').replace(/"/g, '""') + '"').join(','));
             csvChunks.push([headerLine, ...rowLines].join(String.fromCharCode(10)));
-            csvChunks.push('');
           });
-          const fullCsv = csvChunks.join(String.fromCharCode(10));
+          const fullCsv = csvChunks.join(String.fromCharCode(10) + String.fromCharCode(10));
           const blob = new Blob([fullCsv], { type: 'text/csv;charset=utf-8' });
           const link = document.createElement('a');
           link.download = (currentNoteName || 'Note').replace(/[^a-z0-9]/gi, '_') + '_All_Tables.csv';
@@ -3314,8 +3362,12 @@ function buildChartHtml({
         }
       }
 
-      // Initialize on Load
+      // Initialize on Load (Idempotent execution guard)
+      let _isInitialized = false;
       function init() {
+        if (_isInitialized) return;
+        _isInitialized = true;
+
         ensureFavicon();
         loadPersistedState();
         applyTheme(state.theme);
@@ -3327,8 +3379,9 @@ function buildChartHtml({
         parseTables();
       }
 
-      window.addEventListener('DOMContentLoaded', init);
-      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', init, { once: true });
+      } else {
         init();
       }
     })();

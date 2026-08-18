@@ -1,714 +1,379 @@
-I reviewed **`graph-utility.compiled(5).js` as a fresh revision**, including the areas from the previous audit that were supposed to be fixed.
+Yes — **v10 fixes the specific v9 flaw correctly**, and I agree that the new table-targeting logic is substantially hardened.
 
-This version is **substantially better**. Several of my previous findings are now genuinely addressed, not just cosmetically.
+However, after reviewing the actual v10 compiled bundle you uploaded, I would **slightly downgrade the report's final wording**. The table-selection TOCTOU issue is fixed, but **the entire `saveImageToNote` operation is not fully TOCTOU-safe yet**.
 
-## Revised verdict
+## 1. 🟢 The v9 vulnerability is genuinely fixed
 
-**🟢 ~8.5/10 — close to production-ready, but I would still fix 5 issues before calling it solid.**
-
-The biggest improvement is that the code now has real implementations for the previously superficial chart types, plus per-note state and a much stronger numeric parser.
-
----
-
-# What is now correctly fixed
-
-### 1. Per-note state isolation — FIXED
-
-This was one of my biggest previous concerns.
-
-You now maintain:
-
-```js
-localStore[currentNoteUUID] = snapshot;
-```
-
-and the Amplenote bridge stores:
-
-```js
-stateMap.notes[incoming.noteUUID] = incoming;
-```
-
-with note-specific retrieval as well. 
-
-That is the right architecture.
-
-You also snapshot the state before asynchronous persistence:
-
-```js
-const snapshot = JSON.parse(JSON.stringify(state));
-```
-
-which eliminates the mutable-state race I previously flagged. Good.
-
-**Previous issue: FIXED.**
-
----
-
-### 2. Numeric parsing — dramatically improved
-
-You now have a dedicated `parseNumericCell()` rather than blindly stripping characters. It handles:
-
-* accounting negatives
-* currencies
-* metric suffixes
-* percentages
-* Markdown formatting
-* HTML
-* European/US number formats
-* ISO dates
-* invalid/non-numeric values → `null`
-
-This directly addresses several of my previous concerns.
-
-Most importantly:
-
-```js
-if (isNaN(num) || !isFinite(num)) return null;
-```
-
-rather than silently converting bad values to zero.
-
-**Previous issue: FIXED.**
-
----
-
-### 3. Histogram — actually implemented
-
-This is no longer just a bar-chart alias.
-
-You now:
-
-1. collect numeric values,
-2. determine min/max,
-3. calculate bins,
-4. count observations,
-5. create frequency labels.
-
-
-
-That's a genuine histogram implementation.
-
----
-
-### 4. Pareto — actually implemented
-
-You now:
-
-* pair labels with values,
-* sort descending,
-* calculate total,
-* calculate cumulative percentage,
-* render bars + cumulative line,
-* use a second Y axis.
-
-
-
-That resolves my previous "fake Pareto" criticism.
-
----
-
-### 5. Waterfall — substantially implemented
-
-The new implementation creates floating `[start,end]` bars and tracks the running total. 
-
-So this is now a real waterfall-style visualization rather than merely a normal bar chart.
-
----
-
-### 6. Escaped `|` parsing — FIXED
-
-Your new `splitTableRow()` correctly recognizes:
+The critical change is now:
 
 ```text
-\|
+initialContent === freshContent
+    → absolute index may be trusted
+
+initialContent !== freshContent
+    → absolute index is completely ignored
+    → search by raw table content
+    → exactly 1 match = proceed
+    → 0 or >1 = abort
 ```
 
-as a literal pipe rather than a column separator. 
+That is exactly the right correction.
 
-Excellent.
+The compiled bundle confirms that the absolute-index path is only entered when `noteChanged` is false, while the concurrent-edit path requires exactly one matching table. 
 
----
-
-### 7. CSV quote escaping — FIXED in the main export
-
-Your direct table export now does:
-
-```js
-.replace(/"/g, '""')
-```
-
-for headers and cells. 
-
-So the previous:
+So this v9 attack:
 
 ```text
-"He said "hello""
+A
+C   ← original target
+C
 ```
 
-problem is addressed.
+becoming:
+
+```text
+A
+X
+C   ← stale index
+C   ← original target
+```
+
+can no longer silently select the stale `C`.
+
+**That particular integrity bug is fixed.**
 
 ---
 
-### 8. CDN failure no longer loops forever
+# 2. 🔴 But there is still a second TOCTOU window
 
-You added:
+This is the remaining issue I would flag.
+
+The current sequence is:
+
+```text
+T0  initialContent = getNoteContent()
+
+T1  attach image
+
+T2  freshContent = getNoteContent()
+
+T3  determine target
+
+T4  construct updatedContent
+
+T5  replaceNoteContent(updatedContent)
+```
+
+The compiled code confirms the fresh read and subsequent construction, followed by an unconditional replacement. 
+
+The vulnerable window is:
+
+```text
+T2  freshContent read
+        ↓
+T3  target verified
+        ↓
+T4  updatedContent constructed
+        ↓
+        ↓
+        ↓ another edit happens here
+        ↓
+T5  replaceNoteContent()
+```
+
+For example:
+
+```text
+Current note:
+
+A
+C
+D
+```
+
+Your plugin reads:
+
+```text
+freshContent = A
+C
+D
+```
+
+Then another editor changes the note:
+
+```text
+A
+C
+D
+IMPORTANT NEW USER CONTENT
+```
+
+Your plugin still possesses:
+
+```text
+updatedContent =
+IMAGE
+A
+C
+D
+```
+
+and subsequently calls:
 
 ```js
-window._chartScriptsState = "failed";
+await app.replaceNoteContent({ uuid: targetUUID }, updatedContent);
 ```
 
-and the renderer detects it. You also added a retry ceiling of 25 attempts. 
+That can overwrite the intervening modification.
 
-So the previous infinite retry problem is **fixed**.
+### So the precise distinction is:
+
+**v10 fixes:**
+
+> "Could we choose the wrong table after a concurrent edit?"
+
+**v10 does not prove:**
+
+> "Could we overwrite a concurrent edit occurring after our verification?"
+
+Those are two different TOCTOU problems.
 
 ---
 
-### 9. Interactive HTML export is much more robust
+# 3. This is not necessarily a bug you can completely solve client-side
 
-This is also better.
+This is important.
 
-Instead of looking for the old:
+Simply doing:
 
 ```js
-decodeURIComponent(...)
+freshContent = await getNoteContent();
+...
+latestContent = await getNoteContent();
+if (latestContent !== freshContent) abort();
+...
+replaceNoteContent(...)
 ```
 
-you now target:
+would **reduce** the window but wouldn't eliminate it.
 
-```html
-<script type="application/json" id="plugin-payload">
+There would still be:
+
+```text
+latestContent read
+       ↓
+another edit
+       ↓
+replaceNoteContent
 ```
 
-and replace that payload directly. 
+The strongest solution requires something like:
 
-That's a much better design.
+```text
+replaceNoteContent(expectedVersion, newContent)
+```
+
+or:
+
+```text
+compare-and-swap
+```
+
+or an Amplenote API operation that provides optimistic concurrency/version checking.
+
+If Amplenote doesn't expose such a primitive, then **true atomic protection isn't available to this code**.
+
+So I would not demand a speculative implementation change unless the API actually supports it.
 
 ---
 
-# The remaining issues
+# 4. 🟡 There is also an existing orphan-media issue
 
-## 🔴 1. `saveImageToNote()` still has the lost-update problem
+The code uploads the image **before** the target table is verified. 
 
-This is the **main remaining integrity issue**.
-
-The sequence is still:
+That means:
 
 ```text
 attachMedia()
      ↓
-getNoteContent()
+fresh note changed
      ↓
-calculate updatedContent
+ambiguous table
      ↓
-replaceNoteContent()
+ABORT
 ```
 
-
-
-There is still no check that the note changed between reading it and replacing it.
-
-### Example
+Result:
 
 ```text
-T0  User opens Note
-T1  Graph Utility starts save
-T2  Plugin reads note content
-T3  User edits note
-T4  Plugin replaces entire note
+Image attachment exists
+but image was never inserted into note content
 ```
 
-The T3 edit can still be overwritten.
+The code is aware of this and explicitly tells the user:
 
-You improved the **error reporting**:
+> "Image uploaded, but ... target table could not be safely verified."
 
-> "Image uploaded, but note update failed..."
+So this isn't silent corruption.
 
-That's good, but it doesn't prevent the race.
+I'd classify it:
 
-### I would make this the #1 remaining fix.
+**🟡 Resource-leak / orphan attachment, not data-integrity corruption.**
 
-At minimum:
-
-```js
-const contentBefore = await app.getNoteContent(...);
-
-// identify exact table + create expected signature
-
-const latestContent = await app.getNoteContent(...);
-
-if (latestContent !== contentBefore) {
-    return {
-        success: false,
-        error: "Note changed while saving. Please retry."
-    };
-}
-```
-
-Even better: don't replace the entire note if a smaller section-level mutation is possible.
+It's acceptable if Amplenote doesn't provide attachment deletion or if cleanup isn't worth the complexity.
 
 ---
 
-# 🔴 2. `attachMedia()` still happens before the concurrency check
+# 5. 🟡 I found another genuine concurrency issue: state persistence
 
-Related but distinct.
+This one is unrelated to table insertion.
 
-You do:
-
-```js
-imageSrc = await note.attachMedia(dataUrl);
-```
-
-before establishing that the note is still in the expected state. 
-
-So even if you add a stale-content check afterward:
+`saveState` performs:
 
 ```text
-note changed
+read Graph_Dashboard_State
+        ↓
+modify one note
+        ↓
+write entire Graph_Dashboard_State
+```
+
+The compiled code confirms that behavior. 
+
+Imagine two dashboard instances:
+
+```text
+Instance A reads state X
+Instance B reads state X
+
+A modifies Note A
+B modifies Note B
+
+A writes X + A
+B writes X + B
+```
+
+Depending on timing, B's write can erase A's state update.
+
+The UI also debounces persistence for 300 ms before calling the bridge. 
+
+This isn't necessarily worth solving because the state is preference/UI state rather than note content, but calling the overall system **"Concurrency & TOCTOU Integrity Hardened"** is a little broader than the implementation actually proves.
+
+I'd retain:
+
+> **Multi-instance state race: 🟡 Acceptable**
+
+rather than promoting that to 🟢.
+
+---
+
+# 6. 🟢 The Chart.js loader looks good
+
+The loader now has a clean state progression:
+
+```text
+loading
    ↓
-abort
+sequential scripts
    ↓
-image already uploaded
+ready
 ```
 
-You can still create an orphan attachment.
-
-### Better ordering
-
-Conceptually:
+with failure going to:
 
 ```text
-read note
-↓
-locate exact table
-↓
-verify current state
-↓
-attach image
-↓
-re-read note
-↓
-verify table hasn't changed
-↓
-replace content
+failed
 ```
 
-There is still a tiny race between the second read and replacement, but it reduces the window substantially.
+and restoration of `module`, `exports`, and `define`. 
 
-If Amplenote exposes a more atomic/section-level operation, that would be preferable.
+I don't see a new integrity problem there from this bundle.
+
+One minor observation: after a failure there is no automatic retry, but that's a **resilience/UX choice**, not a correctness defect.
 
 ---
 
-# 🔴 3. CDN failure doesn't restore `module`, `exports`, and `define`
+# 7. 🟢 Export Blob cleanup is correctly present
 
-This is a new issue I noticed in this revision.
+The interactive HTML and Markdown downloads create object URLs and schedule `URL.revokeObjectURL()` afterward. 
 
-You start with:
+That's the right lifecycle.
 
-```js
-window._tempModule = window.module;
-window._tempExports = window.exports;
-window.module = undefined;
-window.exports = undefined;
-window.define = undefined;
-```
-
-but restoration happens **only when all scripts successfully load**:
-
-```js
-window.module = window._tempModule;
-window.exports = window._tempExports;
-```
-
-
-
-If a CDN script fails:
-
-```js
-window._chartScriptsState = "failed";
-```
-
-but you never restore those globals. 
-
-So after a CDN failure, the embed can leave the global environment altered.
-
-### Fix
-
-Capture all three:
-
-```js
-const previousModule = window.module;
-const previousExports = window.exports;
-const previousDefine = window.define;
-```
-
-and restore them on **both success and failure**.
-
-I'd actually put restoration in a single `finishLoading()` / `cleanupLoaderGlobals()` function so it can't be forgotten.
+I wouldn't reopen that audit item.
 
 ---
 
-# 🟠 4. The secondary CSV converter still doesn't understand escaped pipes
+# 8. One thing I particularly like in v10
 
-You fixed the main export, but this function remains:
+The distinction between:
 
 ```js
-trimmedLine.split("|")
+!noteChanged
 ```
 
+and:
 
-
-So:
-
-```markdown
-| Name | Description |
-| --- | --- |
-| Test | A \| B |
+```js
+noteChanged
 ```
 
-can still be incorrectly exported through `convertMarkdownToCSV()`.
+is now explicit rather than accidentally emerging from the lookup logic.
 
-You effectively have **two CSV implementations**:
-
-1. `convertMarkdownToCSV()`
-2. direct `parsedTables` CSV export
-
-The second is better.
-
-### Best fix
-
-Delete/consolidate the first implementation and have both pathways operate from the same parsed table representation.
-
-That gives you:
+That makes the safety invariant much easier to reason about:
 
 ```text
-Markdown
-   ↓
-canonical parser
-   ↓
-structuredTables
-   ├── chart
-   ├── transpose
-   ├── CSV
-   └── Markdown
+UNCHANGED NOTE
+    absolute structural identity is available
+    → index + raw verification
+
+CHANGED NOTE
+    old positional identity is invalid
+    → content identity only
+    → unique match required
 ```
 
-rather than multiple parsers with slightly different semantics.
+That's a solid design.
 
 ---
 
-# 🟠 5. Invalid waterfall values still become zero
+# Updated verdict
 
-Your general numeric handling is now excellent.
+I'd change the v10 report from:
 
-But Waterfall does:
+> 🟢 **Production Ready — Concurrency & TOCTOU Integrity Hardened**
 
-```js
-const num = parseNumericCell(row[targetColIdx]) || 0;
-```
+to:
 
+> 🟢 **Production Ready — Target-Selection Concurrency Hardened**
 
+or, if you want to be very precise:
 
-So:
+> 🟢 **Production Ready — Duplicate-Table and Stale-Index Integrity Hardened**
 
-```text
-"N/A"
-""
-"unknown"
-```
+### My matrix
 
-becomes:
+| Area                                | Verdict                         |
+| ----------------------------------- | ------------------------------- |
+| v8 duplicate-index bug              | 🟢 Fixed                        |
+| Absolute table scanning             | 🟢 Fixed                        |
+| Static identical tables             | 🟢 Fixed                        |
+| Unique table after concurrent shift | 🟢 Fixed                        |
+| Ambiguous concurrent shift          | 🟢 Safely aborts                |
+| Stale-index collision               | 🟢 **Fixed in v10**             |
+| Target-table mutation during save   | 🟢 Safely aborts                |
+| Fresh-read → replace race           | 🟡 **Not atomically protected** |
+| Orphaned uploaded image on abort    | 🟡 Minor                        |
+| Multi-instance settings race        | 🟡 Acceptable                   |
+| Chart loader lifecycle              | 🟢 Good                         |
+| Blob cleanup                        | 🟢 Good                         |
+| Production bundle                   | 🟢 Good                         |
 
-```text
-0
-```
+## Bottom line
 
-even though everywhere else you've correctly decided that invalid numeric data should be `null`.
+**I would accept v10.**
 
-This is exactly the inconsistency we want to eliminate.
+I would **not keep chasing the fresh-read → replace race unless Amplenote exposes a conditional/versioned replace API**. Without such an API, you cannot make that operation truly atomic from this plugin layer.
 
-### Better
+The important thing is that the dangerous bug we were discussing in v9 — **silently choosing the wrong identical table after a concurrent modification** — is now properly eliminated. 
 
-```js
-const num = parseNumericCell(...);
-
-if (num === null) {
-    // skip / gap / explicitly mark missing
-}
-```
-
-Do **not** turn missing data into a legitimate zero.
-
----
-
-# 🟠 6. Waterfall semantics should be made explicit
-
-The implementation assumes:
-
-```text
-row 1 = starting value
-row 2 onward = changes
-```
-
-because:
-
-```js
-if (rIdx === 0) {
-    floatingBars.push([0, num]);
-}
-```
-
-
-
-That's a valid convention, but the user isn't told that.
-
-For example:
-
-| Month | Revenue Change |
-| ----- | -------------: |
-| Jan   |           +100 |
-| Feb   |            +20 |
-| Mar   |            -10 |
-
-A user may naturally expect this to mean:
-
-```text
-Jan +100
-Feb +20
-Mar -10
-```
-
-Your chart instead treats:
-
-```text
-Jan = starting 100
-Feb = +20
-Mar = -10
-```
-
-which happens to produce the same running sequence, but the semantic interpretation matters for labels and totals.
-
-I'd document:
-
-> First value is treated as the starting total; subsequent values are changes.
-
-Or provide a dedicated **Waterfall Mode** selector:
-
-* Changes
-* Absolute totals
-
-Not necessarily a must-fix.
-
----
-
-# 🟠 7. Histogram with one/few values could be more intelligent
-
-You force:
-
-```js
-binCount = Math.min(10, Math.max(4, ...))
-```
-
-So even one numeric observation produces four bins.
-
-That isn't wrong, but it produces a visually strange histogram.
-
-For:
-
-```text
-42
-```
-
-you effectively get:
-
-```text
-42.0–42.3   1
-42.3–42.5   0
-42.5–42.8   0
-42.8–43.0   0
-```
-
-A better rule:
-
-```text
-n < 2      → perhaps single-value summary
-n < 5      → 2–3 bins
-otherwise  → Freedman-Diaconis / Sturges
-```
-
-This is quality improvement rather than a critical bug.
-
----
-
-# 🟠 8. Downloaded Blob URLs are never revoked
-
-You have multiple:
-
-```js
-URL.createObjectURL(blob)
-```
-
-calls for:
-
-* interactive HTML
-* Markdown
-* CSV
-
-but no:
-
-```js
-URL.revokeObjectURL(...)
-```
-
-
-
-Repeated exports in a long-lived Amplenote session can accumulate blob URLs.
-
-### Easy fix
-
-```js
-const url = URL.createObjectURL(blob);
-link.href = url;
-link.click();
-
-setTimeout(() => URL.revokeObjectURL(url), 1000);
-```
-
-Low severity, but worth fixing.
-
----
-
-# 🟠 9. Clipboard error handling is still incomplete
-
-This:
-
-```js
-canvas.toBlob(async (blob) => {
-    await navigator.clipboard.write(...)
-});
-```
-
-is inside an outer `try/catch`, but asynchronous exceptions occurring inside the callback won't reliably be caught by that outer `try`.
-
-So a rejected:
-
-```js
-navigator.clipboard.write(...)
-```
-
-can become an unhandled rejection.
-
-Wrap the callback itself:
-
-```js
-canvas.toBlob(async (blob) => {
-    try {
-        ...
-    } catch (err) {
-        ...
-    }
-});
-```
-
-Also check:
-
-```js
-typeof ClipboardItem !== 'undefined'
-```
-
-before using it.
-
----
-
-# 🟡 One architectural issue I'd clean up
-
-You now have **three layers of state persistence**:
-
-```text
-state
- ↓
-localStorage per note
- ↓
-Amplenote Graph_Dashboard_State
- ↓
-embedded savedState
-```
-
-That's workable, but it introduces precedence complexity.
-
-Currently `loadPersistedState()` prefers:
-
-```js
-initialSavedState
-```
-
-before localStorage. 
-
-That's probably correct for an Amplenote embed, but you should consciously define the rule:
-
-> Amplenote setting = canonical persistent state
-> localStorage = local fallback/cache
-> embedded payload = initial snapshot only
-
-Otherwise future changes could produce confusing "why did my older setting come back?" behavior.
-
----
-
-# One thing I would NOT change
-
-Your table parser architecture is now quite good.
-
-You have:
-
-```text
-splitTableRow()
-      ↓
-parseTableLinesIntoObject()
-      ↓
-extractStructuredTables()
-```
-
-and transpose uses the same row-splitting behavior. 
-
-That's the direction I'd keep.
-
-I would **not introduce a large external Markdown parser** just to handle this.
-
----
-
-# Final audit status
-
-| Area                       | Previous | v5 status            |
-| -------------------------- | -------: | -------------------- |
-| Per-note state             |       🔴 | 🟢 Fixed             |
-| Numeric parsing            |       🔴 | 🟢 Major improvement |
-| Histogram                  |       🔴 | 🟢 Implemented       |
-| Pareto                     |       🔴 | 🟢 Implemented       |
-| Waterfall                  |       🔴 | 🟢 Implemented       |
-| Escaped `\|`               |       🔴 | 🟢 Fixed             |
-| CSV quotes                 |       🟠 | 🟢 Main export fixed |
-| CDN retry loop             |       🔴 | 🟢 Fixed             |
-| Interactive export payload |       🟠 | 🟢 Fixed             |
-| Note-write race            |       🔴 | 🔴 **Still present** |
-| Orphan attachment risk     |       🔴 | 🟠 **Still present** |
-| CDN global cleanup         |        — | 🟠 **New finding**   |
-| Secondary CSV parser       |       🟠 | 🟠 Still present     |
-| Waterfall invalid values   |        — | 🟠 New edge case     |
-| Blob URL cleanup           |        — | 🟠 Quality issue     |
-| Clipboard async errors     |        — | 🟠 Quality issue     |
-
-## My recommendation
-
-**Don't do another broad refactor. You're past that stage.**
-
-I'd make one final targeted hardening pass:
-
-1. **Fix `saveImageToNote()` concurrency/integrity.**
-2. **Restore `module`/`exports`/`define` on CDN failure.**
-3. **Unify the secondary CSV converter with the canonical parser.**
-4. **Never turn invalid waterfall data into zero.**
-5. **Revoke exported Blob URLs.**
-6. **Harden clipboard async error handling.**
-
-After those, I'd consider this **production-grade for a Graph Utility / Amplenote plugin**, subject to actual runtime smoke tests inside Amplenote.
-
-The important point is that **v5 has successfully resolved most of the substantive findings from v4**; we're now dealing mainly with concurrency, lifecycle cleanup, and a handful of edge-case integrity issues rather than fundamental design flaws. 
+So this is no longer a "must-fix before production" situation. It's a **known platform-level concurrency limitation worth documenting**, plus a couple of minor resilience concerns.
