@@ -1,4 +1,4 @@
-import { removeHtmlComments, removeEmptyRowsAndColumns, extractTablesFromMarkdown, extractStructuredTables } from '../lib/utils/markdownParser.js';
+import { removeHtmlComments, removeEmptyRowsAndColumns, splitTableRow, extractTablesFromMarkdown, extractStructuredTables } from '../lib/utils/markdownParser.js';
 
 describe('removeHtmlComments', () => {
   it('should remove HTML comments (Happy Path)', () => {
@@ -11,8 +11,20 @@ describe('removeHtmlComments', () => {
   });
 
   it('should remove multi-line HTML comments (Edge Case)', () => {
-    const input = 'Hello <!-- multi\\nline\\ncomment -->World';
+    const input = 'Hello <!-- multi\nline\ncomment -->World';
     expect(removeHtmlComments(input)).toEqual('Hello World');
+  });
+});
+
+describe('splitTableRow', () => {
+  it('should split normal table row', () => {
+    const input = '| Col A | Col B | Col C |';
+    expect(splitTableRow(input)).toEqual(['Col A', 'Col B', 'Col C']);
+  });
+
+  it('should safely preserve escaped pipes within cells', () => {
+    const input = '| Product | Type A \\| Type B | Price |';
+    expect(splitTableRow(input)).toEqual(['Product', 'Type A | Type B', 'Price']);
   });
 });
 
@@ -23,9 +35,9 @@ describe('removeEmptyRowsAndColumns', () => {
     expect(removeEmptyRowsAndColumns(input)).toEqual(expected);
   });
 
-  it('should remove completely empty columns (Happy Path)', () => {
+  it('should preserve deliberate empty columns while cleaning rows', () => {
     const input = `| a |   | b |\n| c |   | d |`;
-    const expected = `| a | b |\n| c | d |`;
+    const expected = `| a |  | b |\n| c |  | d |`;
     expect(removeEmptyRowsAndColumns(input)).toEqual(expected);
   });
 
@@ -87,6 +99,11 @@ describe('extractStructuredTables', () => {
     expect(tables).toHaveLength(1);
     expect(tables[0].headers).toEqual(['Column 1', 'Price']);
   });
+
+  it('should correctly parse rows with escaped pipes', () => {
+    const input = `| Category | Features |\n|---|---|\n| Plan A | Option 1 \\| Option 2 |`;
+    const tables = extractStructuredTables(input, 'Plans');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].dataRows[0]).toEqual(['Plan A', 'Option 1 | Option 2']);
+  });
 });
-
-

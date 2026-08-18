@@ -1,3 +1,26 @@
+## v0.0.13 (2026-08-18)
+### 🔒 Per-Note State Isolation & Data Integrity
+- **Per-Note Workbench Isolation**: State persistence is now strictly scoped per note UUID (`version: 1, notes: { [noteUUID]: state }`). Switching between notes preserves each document's custom table, axes, and series selections without cross-note contamination.
+- **Race-Safe Note Image Writes**: `saveImageToNote` fetches fresh note content immediately prior to replacement, preventing lost update overwrites if the note was edited during image upload.
+
+### 🔢 Resilient Numeric Cell Parsing & Smart Mapping
+- **Comprehensive `parseNumericCell` Engine**:
+  - Automatically handles currency symbols (`$`, `€`, `£`, `₹`, `¥`), percentages, and commas.
+  - Expands metric multipliers (`10k`, `1.5M`, `2.4B`, `1T`).
+  - Supports accounting negative numbers `(1,234.50)` $\to$ `-1234.50`.
+  - Intelligently differentiates European decimal commas (`1.234,56`) from US commas (`1,234.56`).
+  - Protects ISO dates (`2026-01-15`) from being parsed as numbers so they remain clean category axis labels.
+  - Strips Markdown formatting (`**bold**`, `*italic*`, `[links](url)`) and HTML tags from numbers.
+- **Smart Numeric Column Auto-Detection**: Y-series default selection automatically identifies and checks columns containing valid numerical data, skipping text and comment columns.
+- **Escaped Pipe (`\|`) & Column Integrity**: Added `splitTableRow()` tokenizer respecting escaped pipe characters while preserving deliberate empty columns.
+
+### 📊 Advanced Chart Semantics
+- **Pareto Chart (80/20 Rule)**: Implemented dual-axis visualization with primary descending value bars on `y` and a secondary $0\text{--}100\%$ cumulative percentage line curve on `y1`.
+- **Histogram**: Implemented continuous frequency binning calculations.
+- **Waterfall Chart**: Implemented floating step delta bars (`[start, end]`) with positive/negative color differentiation.
+- **Clean Tooltip & Data Label Formatting**: Added locale formatting (`1,234.50`) and metric abbreviations (`1.5K`, `2.4M`) across tooltips and data label overlays.
+- **Script Loader State Machine**: Added state tracking (`loading`, `ready`, `failed`) and singleton plugin registration to prevent duplicate registration errors.
+
 ## v0.0.11 (2026-08-18)
 ### 🎨 Theme & Palette Expansion
 - **10 Designer Themes**: Added *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai* alongside *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk*.

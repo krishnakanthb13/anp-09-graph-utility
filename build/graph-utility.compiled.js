@@ -44,26 +44,110 @@ async function launchGraphDashboard(app, noteUUID) {
 
 // anp-09-graph-utility/lib/utils/markdownParser.js
 function removeHtmlComments(content) {
-  return content.replace(/<!--[\s\S]*?-->/g, "").trim();
+  return (content || "").replace(/<!--[\s\S]*?-->/g, "").trim();
+}
+function splitTableRow(rowStr) {
+  if (!rowStr || typeof rowStr !== "string") return [];
+  const trimmed = rowStr.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells = [];
+  let current = "";
+  let escaped = false;
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+    if (escaped) {
+      current += char;
+      escaped = false;
+    } else if (char === "\\" && i + 1 < trimmed.length && trimmed[i + 1] === "|") {
+      escaped = true;
+    } else if (char === "|") {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
 }
 function removeEmptyRowsAndColumns(table) {
+  if (!table || typeof table !== "string") return "";
   const rows = table.split("\n").filter((row) => row.trim().startsWith("|"));
   if (rows.length === 0) return "";
-  const parseRow = (r) => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
-  const parsedRows = rows.map(parseRow);
+  const parsedRows = rows.map((r) => splitTableRow(r));
   const columnCount = Math.max(...parsedRows.map((r) => r.length));
+  if (columnCount === 0) return "";
   const normalized = parsedRows.map(
     (row) => Array.from({ length: columnCount }, (_, i) => row[i] ?? "")
   );
-  const nonEmptyColumns = Array.from(
-    { length: columnCount },
-    (_, colIndex) => normalized.some((row) => row[colIndex].trim() !== "")
-  );
-  const cleanedRows = normalized.filter((row) => row.some((cell) => cell.trim() !== "")).map((row) => {
-    const filteredCells = row.filter((_, i) => nonEmptyColumns[i]);
-    return `| ${filteredCells.join(" | ")} |`;
-  });
+  const cleanedRows = normalized.filter((row) => row.some((cell) => cell.trim() !== "")).map((row) => `| ${row.map((cell) => (cell ?? "").replace(/\|/g, "\\|")).join(" | ")} |`);
   return cleanedRows.join("\n");
+}
+function isDelimiterOrPlaceholderRow(row) {
+  if (!row) return true;
+  if (typeof row === "string") {
+    const trimmed = row.trim();
+    if (!trimmed.startsWith("|")) return false;
+    const cells = splitTableRow(trimmed);
+    return cells.every((c) => /^[\s\-:]*$/.test(c));
+  }
+  if (Array.isArray(row)) {
+    return row.every((c) => typeof c === "string" && /^[\s\-:]*$/.test(c));
+  }
+  return false;
+}
+function cleanHeaderName(rawHeader, index) {
+  const cleaned = removeHtmlComments(rawHeader || "").trim();
+  if (!cleaned || /^[\s\-:]+$/.test(cleaned)) {
+    return `Column ${index + 1}`;
+  }
+  return cleaned;
+}
+function parseTableLinesIntoObject(cleanedTableMarkdown, tableIndex, heading, noteName) {
+  const rawRows = cleanedTableMarkdown.split("\n").filter((r) => r.trim().startsWith("|"));
+  if (rawRows.length < 1) return null;
+  const parseCells = (rowStr) => {
+    return splitTableRow(rowStr).map((c) => removeHtmlComments(c).trim());
+  };
+  const parsedRows = rawRows.map(parseCells).filter((row) => row.some((c) => c !== ""));
+  if (parsedRows.length === 0) return null;
+  let headerRowIndex = 0;
+  while (headerRowIndex < parsedRows.length && isDelimiterOrPlaceholderRow(parsedRows[headerRowIndex])) {
+    headerRowIndex++;
+  }
+  if (headerRowIndex >= parsedRows.length) return null;
+  const candidateHeaders = parsedRows[headerRowIndex];
+  const headers = candidateHeaders.map((h, idx) => cleanHeaderName(h, idx));
+  let dataStartIndex = headerRowIndex + 1;
+  if (dataStartIndex < parsedRows.length && isDelimiterOrPlaceholderRow(parsedRows[dataStartIndex])) {
+    dataStartIndex++;
+  }
+  const dataRows = [];
+  for (let i = dataStartIndex; i < parsedRows.length; i++) {
+    const row = parsedRows[i];
+    if (!isDelimiterOrPlaceholderRow(row) && row.some((c) => c !== "")) {
+      const paddedRow = headers.map((_, colIdx) => row[colIdx] !== void 0 ? row[colIdx] : "");
+      dataRows.push(paddedRow);
+    }
+  }
+  const labelParts = [];
+  if (noteName) labelParts.push(noteName);
+  if (heading) labelParts.push(heading);
+  labelParts.push(`Table ${tableIndex}`);
+  const baseName = labelParts.join(" > ");
+  const displayName = `${baseName} (${headers.length} cols \xD7 ${dataRows.length} rows)`;
+  return {
+    id: `table-${tableIndex}`,
+    index: tableIndex,
+    heading: heading || "",
+    noteName: noteName || "",
+    baseName,
+    displayName,
+    headers,
+    dataRows,
+    rowCount: dataRows.length,
+    columnCount: headers.length,
+    rawTableMarkdown: cleanedTableMarkdown
+  };
 }
 function extractTablesFromMarkdown(markdown, noteName = "") {
   const lines = (markdown || "").split("\n");
@@ -102,7 +186,7 @@ function extractTablesFromMarkdown(markdown, noteName = "") {
     } else if (inTable) {
       inTable = false;
       const tableContent = currentTable.join("\n");
-      tables.push(tableContent);
+      tables.push(removeEmptyRowsAndColumns(tableContent));
       tables.push("");
       currentTable = [];
     }
@@ -154,73 +238,6 @@ function extractStructuredTables(markdown, noteName = "") {
   }
   return result;
 }
-function isDelimiterOrPlaceholderRow(row) {
-  if (!row) return true;
-  if (typeof row === "string") {
-    const trimmed = row.trim();
-    if (!trimmed.startsWith("|")) return false;
-    const cells = trimmed.replace(/^\|/, "").replace(/\|$/, "").split("|");
-    return cells.every((c) => /^[\s\-:]*$/.test(c));
-  }
-  if (Array.isArray(row)) {
-    return row.every((c) => typeof c === "string" && /^[\s\-:]*$/.test(c));
-  }
-  return false;
-}
-function cleanHeaderName(rawHeader, index) {
-  const cleaned = removeHtmlComments(rawHeader || "").trim();
-  if (!cleaned || /^[\s\-:]+$/.test(cleaned)) {
-    return `Column ${index + 1}`;
-  }
-  return cleaned;
-}
-function parseTableLinesIntoObject(cleanedTableMarkdown, tableIndex, heading, noteName) {
-  const rawRows = cleanedTableMarkdown.split("\n").filter((r) => r.trim().startsWith("|"));
-  if (rawRows.length < 1) return null;
-  const parseCells = (rowStr) => {
-    return rowStr.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => removeHtmlComments(c).trim());
-  };
-  const parsedRows = rawRows.map(parseCells).filter((row) => row.some((c) => c !== ""));
-  if (parsedRows.length === 0) return null;
-  let headerRowIndex = 0;
-  while (headerRowIndex < parsedRows.length && isDelimiterOrPlaceholderRow(parsedRows[headerRowIndex])) {
-    headerRowIndex++;
-  }
-  if (headerRowIndex >= parsedRows.length) return null;
-  const candidateHeaders = parsedRows[headerRowIndex];
-  const headers = candidateHeaders.map((h, idx) => cleanHeaderName(h, idx));
-  let dataStartIndex = headerRowIndex + 1;
-  if (dataStartIndex < parsedRows.length && isDelimiterOrPlaceholderRow(parsedRows[dataStartIndex])) {
-    dataStartIndex++;
-  }
-  const dataRows = [];
-  for (let i = dataStartIndex; i < parsedRows.length; i++) {
-    const row = parsedRows[i];
-    if (!isDelimiterOrPlaceholderRow(row) && row.some((c) => c !== "")) {
-      const paddedRow = headers.map((_, colIdx) => row[colIdx] || "");
-      dataRows.push(paddedRow);
-    }
-  }
-  const labelParts = [];
-  if (noteName) labelParts.push(noteName);
-  if (heading) labelParts.push(heading);
-  labelParts.push(`Table ${tableIndex}`);
-  const baseName = labelParts.join(" > ");
-  const displayName = `${baseName} (${headers.length} cols \xD7 ${dataRows.length} rows)`;
-  return {
-    id: `table-${tableIndex}`,
-    index: tableIndex,
-    heading: heading || "",
-    noteName: noteName || "",
-    baseName,
-    displayName,
-    headers,
-    dataRows,
-    rowCount: dataRows.length,
-    columnCount: headers.length,
-    rawTableMarkdown: cleanedTableMarkdown
-  };
-}
 
 // anp-09-graph-utility/lib/utils/tableTranspose.js
 function transposeArray(array) {
@@ -258,7 +275,7 @@ function transposeMarkdownTables(content) {
     if (tableLines.length === 0) {
       return section;
     }
-    const parseCells = (rowStr) => rowStr.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+    const parseCells = (rowStr) => splitTableRow(rowStr);
     const tableRows = tableLines.map(parseCells);
     const isDelim = (r) => r.every((c) => !c || /^[\s\-:]*$/.test(c));
     const contentRows = tableRows.filter((row) => !isDelim(row) && row.some((c) => c !== ""));
@@ -269,9 +286,9 @@ function transposeMarkdownTables(content) {
     const newHeaders = rawHeaders.map((h, idx) => cleanHeaderName(h, idx));
     const newDataRows = transposedMatrix.slice(1);
     const colCount = newHeaders.length;
-    const headerLine = "| " + newHeaders.join(" | ") + " |";
+    const headerLine = "| " + newHeaders.map((h) => String(h).replace(/\|/g, "\\|")).join(" | ") + " |";
     const delimLine = "| " + Array(colCount).fill("---").join(" | ") + " |";
-    const dataLines = newDataRows.map((row) => "| " + row.map((c) => c !== void 0 && c !== null ? c : "").join(" | ") + " |");
+    const dataLines = newDataRows.map((row) => "| " + row.map((c) => String(c !== void 0 && c !== null ? c : "").replace(/\|/g, "\\|")).join(" | ") + " |");
     const transposedTable = [headerLine, delimLine, ...dataLines].join("\n");
     const transposedHeader = heading ? heading.includes("(Transposed)") ? heading : `${heading} (Transposed)` : "";
     return transposedHeader ? `${transposedHeader}
@@ -310,9 +327,24 @@ async function handleEmbedCall(app, actionName, payload = {}) {
   try {
     switch (actionName) {
       case "saveState": {
-        const stateStr = typeof payload === "string" ? payload : JSON.stringify(payload);
+        const incoming = typeof payload === "string" ? JSON.parse(payload) : payload;
+        const currentSetting = (app.settings || {})["Graph_Dashboard_State"];
+        let stateMap = { version: 1, notes: {} };
+        if (currentSetting) {
+          try {
+            const parsed = typeof currentSetting === "string" ? JSON.parse(currentSetting) : currentSetting;
+            if (parsed && typeof parsed === "object") {
+              stateMap = parsed.notes ? parsed : { version: 1, notes: parsed };
+            }
+          } catch {
+          }
+        }
+        if (incoming && incoming.noteUUID) {
+          stateMap.notes[incoming.noteUUID] = incoming;
+          stateMap.activeNoteUUID = incoming.noteUUID;
+        }
         if (typeof app.setSetting === "function") {
-          await app.setSetting("Graph_Dashboard_State", stateStr);
+          await app.setSetting("Graph_Dashboard_State", JSON.stringify(stateMap));
         }
         return { success: true };
       }
@@ -320,7 +352,12 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         const raw = (app.settings || {})["Graph_Dashboard_State"];
         if (!raw) return null;
         try {
-          return JSON.parse(raw);
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+          const targetUUID = payload?.noteUUID;
+          if (parsed && parsed.notes && targetUUID && parsed.notes[targetUUID]) {
+            return parsed.notes[targetUUID];
+          }
+          return parsed;
         } catch {
           return null;
         }
@@ -432,20 +469,19 @@ async function handleEmbedCall(app, actionName, payload = {}) {
           return { success: false, error: "Missing note UUID or image data." };
         }
         const note = await getNote(app, targetUUID);
-        const noteContent = await app.getNoteContent({ uuid: targetUUID });
-        if (typeof noteContent !== "string") {
-          return { success: false, error: "Could not read note content." };
-        }
         let imageSrc = dataUrl;
+        let mediaAttached = false;
         if (note && typeof note.attachMedia === "function") {
           try {
             imageSrc = await note.attachMedia(dataUrl);
+            mediaAttached = true;
           } catch (attachErr) {
             console.warn("[GraphUtility] note.attachMedia fallback:", attachErr);
           }
         } else if (typeof app.attachNoteMedia === "function") {
           try {
             imageSrc = await app.attachNoteMedia({ uuid: targetUUID }, dataUrl);
+            mediaAttached = true;
           } catch (attachErr) {
             console.warn("[GraphUtility] app.attachNoteMedia fallback:", attachErr);
           }
@@ -458,6 +494,13 @@ async function handleEmbedCall(app, actionName, payload = {}) {
 \\
 
 `;
+        const noteContent = await app.getNoteContent({ uuid: targetUUID });
+        if (typeof noteContent !== "string") {
+          return {
+            success: false,
+            error: mediaAttached ? "Image uploaded, but could not read latest note content to insert." : "Could not read note content."
+          };
+        }
         const lines = noteContent.split("\n");
         let currentTblIdx = -1;
         let inTable = false;
@@ -491,7 +534,14 @@ async function handleEmbedCall(app, actionName, payload = {}) {
           updatedContent = `${imageBlock}
 ${noteContent}`;
         }
-        await app.replaceNoteContent({ uuid: targetUUID }, updatedContent);
+        try {
+          await app.replaceNoteContent({ uuid: targetUUID }, updatedContent);
+        } catch (replaceErr) {
+          return {
+            success: false,
+            error: mediaAttached ? `Image uploaded, but note update failed: ${replaceErr.message}` : `Failed to update note content: ${replaceErr.message}`
+          };
+        }
         return {
           success: true,
           message: `Chart image saved directly above Table ${tableIndex + 1} in your note!`
@@ -576,13 +626,14 @@ function buildChartHtml({
   <link rel="shortcut icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAB/klEQVR4nM3XyUoDQRQFUPdunI0ZHKMxCwccMAZjcEAjDp/gRvA//Ac3btz4E7rwj9wICu6U11Wv+95+3SGETmPBhcqt4vUhZJEeGvrP6+7+8zeL9P3QkcJaJukZEzx0Zn2gSUXIwWhxI5ckIhxgM5ekAsZKW5nno/MURjsDcA/fpjy+vJqun+hygKgnhHwYL+9QBBDv+snI20MY7C2gsksJALEOg19t2h1ZBIAzA5io7FEEEO8wuLqdIwDPLWC2QQkAsU4j66t9GyZAJNwxADg3gMm5fYoA4p0mCSALz/UzAnBGAqBJcYCmiS4EYB893N1nQDTHAKbmDygCiHe6ZI+A+LnekSAAZyUAWhQHcHv5pfPwVgzg7n0/D4fRjgHRfAOYXjikCED3CNAOAdohQDsE4HwLWGxTAoDfN95/wmhHAN8RwHcEgPkJgCOKA7g9A1zHANcxwHUMiOYbQGHpmCIA3SNAOwRohwDtEIDzLaB6QgkAfk8A3xHAdwTwHQFgvgHMVE8pAtA9ArRDgHYI0A4BON8Cls8oAcDvCeA7AviOAL4jAMw3gOLyOUUAukeAdgjQDgHaIQDnW8BKhxIA/J4AviOA7wjgOwLA/MR/RaXaRRgBZB2dnfqfsFS7zCWpgPLqVS7p+m5Qrl8PND29HWkq9ZtMksl7Ym4vp3mvP1cbfZc4+/PAAAAAAElFTkSuQmCC">
   <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAB/klEQVR4nM3XyUoDQRQFUPdunI0ZHKMxCwccMAZjcEAjDp/gRvA//Ac3btz4E7rwj9wICu6U11Wv+95+3SGETmPBhcqt4vUhZJEeGvrP6+7+8zeL9P3QkcJaJukZEzx0Zn2gSUXIwWhxI5ckIhxgM5ekAsZKW5nno/MURjsDcA/fpjy+vJqun+hygKgnhHwYL+9QBBDv+snI20MY7C2gsksJALEOg19t2h1ZBIAzA5io7FEEEO8wuLqdIwDPLWC2QQkAsU4j66t9GyZAJNwxADg3gMm5fYoA4p0mCSALz/UzAnBGAqBJcYCmiS4EYB893N1nQDTHAKbmDygCiHe6ZI+A+LnekSAAZyUAWhQHcHv5pfPwVgzg7n0/D4fRjgHRfAOYXjikCED3CNAOAdohQDsE4HwLWGxTAoDfN95/wmhHAN8RwHcEgPkJgCOKA7g9A1zHANcxwHUMiOYbQGHpmCIA3SNAOwRohwDtEIDzLaB6QgkAfk8A3xHAdwTwHQFgvgHMVE8pAtA9ArRDgHYI0A4BON8Cls8oAcDvCeA7AviOAL4jAMw3gOLyOUUAukeAdgjQDgHaIQDnW8BKhxIA/J4AviOA7wjgOwLA/MR/RaXaRRgBZB2dnfqfsFS7zCWpgPLqVS7p+m5Qrl8PND29HWkq9ZtMksl7Ym4vp3mvP1cbfZc4+/PAAAAAAElFTkSuQmCC">
   
-  <!-- Chart.js CDN & Pro Plugins (Strict Sequential Loading) -->
+  <!-- Chart.js CDN & Pro Plugins (Strict Sequential Loading with State Tracking) -->
   <script>
     window._tempModule = window.module;
     window._tempExports = window.exports;
     window.module = undefined;
     window.exports = undefined;
     window.define = undefined;
+    window._chartScriptsState = "loading";
 
     (function loadScripts() {
       var urls = [
@@ -598,6 +649,7 @@ function buildChartHtml({
           window.module = window._tempModule;
           window.exports = window._tempExports;
           window._chartScriptsLoaded = true;
+          window._chartScriptsState = "ready";
           window.dispatchEvent(new Event('chartsReady'));
           return;
         }
@@ -610,7 +662,8 @@ function buildChartHtml({
         };
         script.onerror = function() {
           console.error("Failed to load: " + script.src);
-          // Retry logic could go here
+          window._chartScriptsState = "failed";
+          window.dispatchEvent(new CustomEvent('chartsError', { detail: { failedSrc: script.src } }));
         };
         document.head.appendChild(script);
       }
@@ -1488,8 +1541,8 @@ function buildChartHtml({
               <option value="mixed">\u{1F500} Mixed Chart (Bar + Line)</option>
               <option value="pareto">\u{1F4C9} Pareto Chart (80/20)</option>
               <option value="scatter">\u2728 Scatter Plot</option>
-              <option value="bubble">\u{1F535} 3D Bubble Chart</option>
-              <option value="radar">\u{1F578}\uFE0F 3D Radar Chart</option>
+              <option value="bubble">\u{1F535} Bubble Chart</option>
+              <option value="radar">\u{1F578}\uFE0F Radar Chart</option>
             </optgroup>
           </select>
         </div>
@@ -1843,16 +1896,20 @@ function buildChartHtml({
       let parsedTables = [];
       let saveTimeout = null;
 
+      let _pluginsRegistered = false;
       // Register Chart.js Plugins globally if available
       function registerPlugins() {
-        if (typeof Chart === 'undefined') return;
+        if (typeof Chart === 'undefined' || _pluginsRegistered) return;
         try {
           if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
-          if (typeof window.ChartDataLabels !== 'undefined') Chart.register(window.ChartDataLabels);
+          else if (typeof window.ChartDataLabels !== 'undefined') Chart.register(window.ChartDataLabels);
         } catch(e){}
         try {
           if (typeof zoomPlugin !== 'undefined') Chart.register(zoomPlugin);
+          else if (typeof window.zoomPlugin !== 'undefined') Chart.register(window.zoomPlugin);
+          else if (typeof window.ChartZoom !== 'undefined') Chart.register(window.ChartZoom);
         } catch(e){}
+        _pluginsRegistered = true;
       }
 
       // Toast notification helper
@@ -1865,14 +1922,28 @@ function buildChartHtml({
         setTimeout(() => toast.classList.remove('show'), 2800);
       }
 
-      // Dual-Layer State Persistence: LocalStorage + Amplenote Settings Bridge
+      // Dual-Layer State Persistence: LocalStorage + Amplenote Settings Bridge (Per-Note Scoped)
       function persistState() {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
           try {
-            localStorage.setItem('amplenote_graph_utility_state', JSON.stringify(state));
+            const snapshot = JSON.parse(JSON.stringify(state));
+            let localStore = {};
+            try {
+              const raw = localStorage.getItem('amplenote_graph_utility_state_v2');
+              if (raw) localStore = JSON.parse(raw);
+            } catch {}
+
+            if (currentNoteUUID) {
+              localStore[currentNoteUUID] = snapshot;
+            }
+            localStore.activeNoteUUID = currentNoteUUID;
+            localStorage.setItem('amplenote_graph_utility_state_v2', JSON.stringify(localStore));
+
             if (window.callAmplenotePlugin) {
-              window.callAmplenotePlugin('saveState', state).catch(() => {});
+              window.callAmplenotePlugin('saveState', snapshot).catch((err) => {
+                console.warn('[GraphUtility] saveState warning:', err);
+              });
             }
           } catch (e) {
             console.error('[GraphUtility] Failed to persist state:', e);
@@ -1883,10 +1954,22 @@ function buildChartHtml({
       // Hydrate state from saved options
       function loadPersistedState() {
         try {
-          const local = localStorage.getItem('amplenote_graph_utility_state');
-          const source = (initialSavedState && Object.keys(initialSavedState).length > 0)
-            ? initialSavedState
-            : (local ? JSON.parse(local) : null);
+          let source = null;
+          if (initialSavedState && Object.keys(initialSavedState).length > 0) {
+            source = initialSavedState;
+          } else {
+            const raw = localStorage.getItem('amplenote_graph_utility_state_v2') || localStorage.getItem('amplenote_graph_utility_state');
+            if (raw) {
+              const store = JSON.parse(raw);
+              if (store && currentNoteUUID && store[currentNoteUUID]) {
+                source = store[currentNoteUUID];
+              } else if (store && store.notes && currentNoteUUID && store.notes[currentNoteUUID]) {
+                source = store.notes[currentNoteUUID];
+              } else {
+                source = store;
+              }
+            }
+          }
 
           if (source) {
             if (source.theme && THEMES.includes(source.theme)) state.theme = source.theme;
@@ -2037,14 +2120,14 @@ function buildChartHtml({
         let count = 0;
 
         sections.forEach(sec => {
-          const lines = sec.trim().split(/\\r?\\n/);
+          const lines = sec.trim().split(String.fromCharCode(10)).map(l => (l.endsWith(String.fromCharCode(13)) ? l.slice(0, -1) : l));
           let heading = '';
           const tableRows = [];
 
           lines.forEach(l => {
             const tr = l.trim();
             if (tr.startsWith('#')) {
-              heading = tr.replace(/^#+\\s*/, '');
+              heading = tr.replace(/^#+s*/, '');
             } else if (tr.startsWith('|')) {
               tableRows.push(tr);
             }
@@ -2052,12 +2135,34 @@ function buildChartHtml({
 
           if (tableRows.length > 0) {
             count++;
-            const parseRow = r => r.replace(/^\\|/, '').replace(/\\|$/, '').split('|').map(c => c.replace(/<!--[\\s\\S]*?-->/g, '').trim());
+            const parseRow = r => {
+              const trimmed = r.trim().replace(/^|/, '').replace(/|$/, '');
+              const cells = [];
+              let current = '';
+              let escaped = false;
+              for (let i = 0; i < trimmed.length; i++) {
+                const char = trimmed[i];
+                if (escaped) {
+                  current += char;
+                  escaped = false;
+                } else if (char === String.fromCharCode(92)) {
+                  escaped = true;
+                } else if (char === '|') {
+                  cells.push(current.replace(/<!--[sS]*?-->/g, '').trim());
+                  current = '';
+                } else {
+                  current += char;
+                }
+              }
+              cells.push(current.replace(/<!--[sS]*?-->/g, '').trim());
+              return cells;
+            };
+
             const parsedRows = tableRows.map(parseRow).filter(row => row.some(c => c !== ''));
             if (parsedRows.length === 0) return;
 
             // Skip delimiter / placeholder rows
-            const isDelim = r => r.every(c => !c || /^[\\s:-]*$/.test(c));
+            const isDelim = r => r.every(c => !c || /^[s:-]*$/.test(c));
             let headerIdx = 0;
             while (headerIdx < parsedRows.length && isDelim(parsedRows[headerIdx])) {
               headerIdx++;
@@ -2066,8 +2171,8 @@ function buildChartHtml({
 
             const rawHeaders = parsedRows[headerIdx];
             const cleanH = (raw, idx) => {
-              const cleaned = (raw || '').trim();
-              return (!cleaned || /^[\\s:-]+$/.test(cleaned)) ? ('Column ' + (idx + 1)) : cleaned;
+              const cleaned = (raw || '').trim().replace(/<!--[sS]*?-->/g, '').replace(/[*_~=]/g, '').replaceAll(String.fromCharCode(96), '');
+              return (!cleaned || /^[s:-]+$/.test(cleaned)) ? ('Column ' + (idx + 1)) : cleaned;
             };
             const headers = rawHeaders.map(cleanH);
 
@@ -2168,8 +2273,13 @@ function buildChartHtml({
             .map((_, idx) => idx)
             .filter(idx => idx !== state.selectedXIndex);
 
+          // Find columns that have numeric data
+          const numericIndices = availableIndices.filter(colIdx => {
+            return currentTable.dataRows.some(row => parseNumericCell(row[colIdx]) !== null);
+          });
+
           if (!state.selectedYIndices || state.selectedYIndices.length === 0) {
-            state.selectedYIndices = availableIndices.length > 0 ? availableIndices : [0];
+            state.selectedYIndices = numericIndices.length > 0 ? numericIndices : (availableIndices.length > 0 ? availableIndices : [0]);
           }
 
           // Update Select All / Select #1 button text
@@ -2224,10 +2334,97 @@ function buildChartHtml({
         renderChart();
       }
 
+      /**
+       * Comprehensive numeric cell parser.
+       * Handles accounting negatives (1,234.50) -> -1234.50, currencies, metric multipliers (k, M, B),
+       * percentages, markdown styling (*bold*, _italic_), HTML tags, and European/US decimal formats.
+       * Preserves null for dates, strings, and non-numeric cells to avoid false zeros.
+       * @param {any} val
+       * @returns {number|null}
+       */
+      function parseNumericCell(val) {
+        if (val === null || val === undefined) return null;
+        let s = String(val).trim();
+        if (!s || s === '-' || s === '\u2014' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'none') return null;
+
+        // 1. Strip HTML tags
+        s = s.replace(/<[^>]*>/g, '');
+
+        // 2. Strip Markdown link markup: [100](url) -> 100
+        s = s.replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, '$1');
+
+        // 3. Strip Markdown formatting (*, _, ~, ==, backtick)
+        s = s.replace(/[*_~=]/g, '').replaceAll(String.fromCharCode(96), '').trim();
+        if (!s) return null;
+
+        // 4. Do not parse ISO/full dates (e.g. 2026-01-15) as numbers
+        if (/^\\d{4}[-.\\/]\\d{2}[-.\\/]\\d{2}/.test(s) || /^\\d{2}[-.\\/]\\d{2}[-.\\/]\\d{4}/.test(s)) {
+          return null;
+        }
+
+        // 5. Accounting parentheses or explicit leading minus
+        let isNegative = false;
+        if (/^\\(.*\\)$/.test(s)) {
+          isNegative = true;
+          s = s.slice(1, -1).trim();
+        } else if (/^-\\s*/.test(s)) {
+          isNegative = true;
+          s = s.replace(/^-\\s*/, '').trim();
+        }
+
+        // 6. Check for metric multiplier suffix (k/K, m/M, b/B, t/T)
+        let multiplier = 1;
+        const suffixMatch = s.match(/([kmbtKMBT])\\s*$/);
+        if (suffixMatch) {
+          const suf = suffixMatch[1].toUpperCase();
+          if (suf === 'K') multiplier = 1e3;
+          else if (suf === 'M') multiplier = 1e6;
+          else if (suf === 'B') multiplier = 1e9;
+          else if (suf === 'T') multiplier = 1e12;
+          s = s.replace(/([kmbtKMBT])\\s*$/, '').trim();
+        }
+
+        // 7. Strip currency symbols, +, % and non-breaking spaces
+        s = s.replace(/[$\u20AC\xA3\u20B9\xA5%+\\u00A0]/g, '').trim();
+
+        // 8. Handle European vs US thousands/decimal formatting
+        if (s.includes('.') && s.includes(',')) {
+          if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+            // European: 1.234,56 -> 1234.56
+            s = s.replace(/\\./g, '').replace(/,/g, '.');
+          } else {
+            // US: 1,234.56 -> 1234.56
+            s = s.replace(/,/g, '');
+          }
+        } else if (s.includes(',')) {
+          if (/,\\d{1,2}$/.test(s)) {
+            // European decimal: 123,5 -> 123.5
+            s = s.replace(/,/g, '.');
+          } else {
+            // US thousands: 1,234 -> 1234
+            s = s.replace(/,/g, '');
+          }
+        }
+
+        // Strip remaining inner whitespace
+        s = s.replace(/\\s+/g, '');
+
+        if (!/^-?\\d*(\\.\\d+)?(e[+-]?\\d+)?$/i.test(s) || s === '' || s === '.') return null;
+
+        const num = parseFloat(s);
+        if (isNaN(num) || !isFinite(num)) return null;
+        return (isNegative ? -Math.abs(num) : num) * multiplier;
+      }
+
       let chartRetries = 0;
       // Render Chart.js with full chart types & easing
       function renderChart() {
         if (typeof Chart === 'undefined' || !window._chartScriptsLoaded) {
+          if (window._chartScriptsState === 'failed') {
+            console.warn('[GraphUtility] Chart library failed to load from CDN.');
+            showToast('Chart library unavailable. Please check connection or reload.');
+            return;
+          }
           if (chartRetries < 25) {
             chartRetries++;
             setTimeout(renderChart, 150);
@@ -2253,7 +2450,7 @@ function buildChartHtml({
           return;
         }
 
-        const labels = state.selectedXIndex === -1
+        let labels = state.selectedXIndex === -1
           ? currentTable.dataRows.map((_, rIdx) => 'Row ' + (rIdx + 1))
           : currentTable.dataRows.map(row => row[state.selectedXIndex] || ('Row ' + (currentTable.dataRows.indexOf(row) + 1)));
 
@@ -2263,86 +2460,224 @@ function buildChartHtml({
         const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
         const textColor = isDark ? '#a6b0c9' : '#334155';
 
-        // Build Datasets based on selected chart type
         const isPieOrDonut = ['pie', 'doughnut', 'polarArea'].includes(state.chartType);
         const isMixed = state.chartType === 'mixed';
         const isPareto = state.chartType === 'pareto';
         const isWaterfall = state.chartType === 'waterfall';
+        const isHistogram = state.chartType === 'histogram';
         const isScatter = state.chartType === 'scatter';
         const isBubble = state.chartType === 'bubble';
         const isRadar = state.chartType === 'radar';
 
         const xValues = state.selectedXIndex >= 0
-          ? currentTable.dataRows.map(r => {
-              const xVal = parseFloat((r[state.selectedXIndex] || '').replace(/[^0-9.-]/g, ''));
-              return isNaN(xVal) ? null : xVal;
-            })
+          ? currentTable.dataRows.map(r => parseNumericCell(r[state.selectedXIndex]))
           : null;
 
-        const datasets = (state.selectedYIndices || []).map((colIdx, sIdx) => {
-          const seriesName = currentTable.headers[colIdx] || ('Series ' + (colIdx + 1));
-          const color = palette[colIdx % palette.length];
-          const rawValues = currentTable.dataRows.map((row) => {
-            const val = (row[colIdx] || '').replace(/[^0-9.-]/g, '');
-            const parsed = parseFloat(val);
-            return isNaN(parsed) ? 0 : parsed;
+        let datasets = [];
+
+        // 1. Dedicated Pareto Chart (80/20 Rule: Sorted Bars + Cumulative Percentage Line)
+        if (isPareto) {
+          const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
+          const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
+          const color = palette[targetColIdx % palette.length];
+
+          const paired = currentTable.dataRows.map((row, rIdx) => {
+            const rawLabel = state.selectedXIndex === -1 ? ('Item ' + (rIdx + 1)) : (row[state.selectedXIndex] || ('Item ' + (rIdx + 1)));
+            const num = parseNumericCell(row[targetColIdx]);
+            return { label: rawLabel, value: num !== null ? Math.max(0, num) : 0 };
+          }).sort((a, b) => b.value - a.value);
+
+          const totalSum = paired.reduce((acc, cur) => acc + cur.value, 0);
+          let runningSum = 0;
+          labels = paired.map(p => p.label);
+          const barValues = paired.map(p => p.value);
+          const cumulativePercentages = paired.map(p => {
+            runningSum += p.value;
+            return totalSum > 0 ? Number(((runningSum / totalSum) * 100).toFixed(1)) : 0;
           });
 
-          if (isScatter) {
-            return {
-              type: 'scatter',
-              label: seriesName,
-              data: rawValues.map((v, i) => ({
-                x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
-                y: v
-              })),
-              backgroundColor: color,
+          datasets = [
+            {
+              type: 'bar',
+              label: seriesName + ' (Value)',
+              data: barValues,
+              backgroundColor: color + 'cc',
               borderColor: color,
-              pointRadius: 6
-            };
-          }
-
-          if (isBubble) {
-            return {
-              type: 'bubble',
-              label: seriesName,
-              data: rawValues.map((v, i) => ({
-                x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
-                y: v,
-                r: Math.min(25, Math.max(5, Math.abs(v) / 4))
-              })),
-              backgroundColor: color + '88',
-              borderColor: color
-            };
-          }
-
-          if (isMixed) {
-            const type = (sIdx % 2 === 0) ? 'bar' : 'line';
-            return {
-              type: type,
-              label: seriesName + ' (' + type.toUpperCase() + ')',
-              data: rawValues,
-              backgroundColor: type === 'bar' ? color + 'bb' : color,
-              borderColor: color,
+              borderWidth: 1.5,
+              yAxisID: 'y',
+              order: 2
+            },
+            {
+              type: 'line',
+              label: 'Cumulative %',
+              data: cumulativePercentages,
+              borderColor: '#f59e0b',
+              backgroundColor: '#f59e0b',
               borderWidth: 2.5,
-              fill: false,
-              tension: state.smoothCurves ? 0.35 : 0
-            };
-          }
+              tension: 0.1,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              yAxisID: 'y1',
+              order: 1
+            }
+          ];
+        } 
+        // 2. Dedicated Histogram (Continuous Frequency Binning)
+        else if (isHistogram) {
+          const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
+          const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
+          const color = palette[targetColIdx % palette.length];
 
-          return {
-            label: seriesName,
-            data: rawValues,
-            backgroundColor: isPieOrDonut ? palette : (state.fillArea ? color + '33' : color),
-            borderColor: color,
-            borderWidth: 2.5,
-            fill: state.fillArea || state.chartType === 'area',
-            tension: state.smoothCurves ? 0.35 : 0,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: color
-          };
-        });
+          const nums = currentTable.dataRows
+            .map(row => parseNumericCell(row[targetColIdx]))
+            .filter(n => n !== null);
+
+          if (nums.length === 0) {
+            labels = ['No numeric data'];
+            datasets = [{ label: seriesName, data: [0], backgroundColor: color }];
+          } else {
+            const minVal = Math.min(...nums);
+            const maxVal = Math.max(...nums);
+            const binCount = Math.min(10, Math.max(4, Math.ceil(Math.log2(nums.length) + 1)));
+            const range = (maxVal - minVal) || 1;
+            const binWidth = range / binCount;
+
+            const bins = Array.from({ length: binCount }, () => 0);
+            const binLabels = [];
+
+            for (let b = 0; b < binCount; b++) {
+              const start = minVal + (b * binWidth);
+              const end = start + binWidth;
+              binLabels.push(start.toFixed(1) + ' \u2013 ' + end.toFixed(1));
+            }
+
+            nums.forEach(val => {
+              let bIdx = Math.floor((val - minVal) / binWidth);
+              if (bIdx >= binCount) bIdx = binCount - 1;
+              bins[bIdx]++;
+            });
+
+            labels = binLabels;
+            datasets = [{
+              type: 'bar',
+              label: seriesName + ' (Frequency)',
+              data: bins,
+              backgroundColor: color + 'cc',
+              borderColor: color,
+              borderWidth: 1.5,
+              categoryPercentage: 1.0,
+              barPercentage: 0.96
+            }];
+          }
+        }
+        // 3. Dedicated Waterfall Chart (Floating Step Dimenions)
+        else if (isWaterfall) {
+          const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
+          const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
+          
+          let running = 0;
+          const floatingBars = [];
+          const barColors = [];
+          const borderColors = [];
+
+          currentTable.dataRows.forEach((row, rIdx) => {
+            const num = parseNumericCell(row[targetColIdx]) || 0;
+            const prev = running;
+            running += num;
+
+            if (rIdx === 0) {
+              floatingBars.push([0, num]);
+              barColors.push('#6366f1cc');
+              borderColors.push('#6366f1');
+            } else if (num >= 0) {
+              floatingBars.push([prev, running]);
+              barColors.push('#10b981cc'); // Positive change: Green
+              borderColors.push('#10b981');
+            } else {
+              floatingBars.push([prev, running]);
+              barColors.push('#ef4444cc'); // Negative change: Red
+              borderColors.push('#ef4444');
+            }
+          });
+
+          datasets = [{
+            type: 'bar',
+            label: seriesName + ' (Waterfall Steps)',
+            data: floatingBars,
+            backgroundColor: barColors,
+            borderColor: borderColors,
+            borderWidth: 1.5
+          }];
+        }
+        // 4. Standard and Multi-Series Datasets
+        else {
+          datasets = (state.selectedYIndices || []).map((colIdx, sIdx) => {
+            const seriesName = currentTable.headers[colIdx] || ('Series ' + (colIdx + 1));
+            const color = palette[colIdx % palette.length];
+            const rawValues = currentTable.dataRows.map((row) => parseNumericCell(row[colIdx]));
+
+            if (isScatter) {
+              return {
+                type: 'scatter',
+                label: seriesName,
+                data: rawValues.map((v, i) => ({
+                  x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
+                  y: v !== null ? v : 0
+                })),
+                backgroundColor: color,
+                borderColor: color,
+                pointRadius: 6
+              };
+            }
+
+            if (isBubble) {
+              return {
+                type: 'bubble',
+                label: seriesName,
+                data: rawValues.map((v, i) => ({
+                  x: (xValues && xValues[i] !== null) ? xValues[i] : (i + 1),
+                  y: v !== null ? v : 0,
+                  r: Math.min(25, Math.max(5, Math.abs(v !== null ? v : 10) / 4))
+                })),
+                backgroundColor: color + '88',
+                borderColor: color
+              };
+            }
+
+            if (isMixed) {
+              const type = (sIdx % 2 === 0) ? 'bar' : 'line';
+              return {
+                type: type,
+                label: seriesName + ' (' + type.toUpperCase() + ')',
+                data: rawValues,
+                backgroundColor: type === 'bar' ? color + 'bb' : color,
+                borderColor: color,
+                borderWidth: 2.5,
+                fill: false,
+                tension: state.smoothCurves ? 0.35 : 0,
+                spanGaps: true
+              };
+            }
+
+            return {
+              label: seriesName,
+              data: rawValues,
+              backgroundColor: isPieOrDonut
+                ? labels.map((_, i) => palette[i % palette.length])
+                : (state.fillArea ? color + '33' : color),
+              borderColor: isPieOrDonut
+                ? (isDark ? '#0d1117' : '#ffffff')
+                : color,
+              borderWidth: isPieOrDonut ? 1.5 : 2.5,
+              fill: state.fillArea || state.chartType === 'area',
+              tension: state.smoothCurves ? 0.35 : 0,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointBackgroundColor: color,
+              spanGaps: true
+            };
+          });
+        }
 
         document.getElementById('chipSeries').innerHTML = '<strong>' + datasets.length + '</strong> Series';
 
@@ -2391,8 +2726,20 @@ function buildChartHtml({
                 font: { size: 10, weight: 'bold', family: '"Inter", sans-serif' },
                 padding: 4,
                 formatter: (value) => {
-                  if (typeof value === 'object' && value !== null) return value.y;
-                  return value;
+                  if (value === null || value === undefined) return '';
+                  let v = value;
+                  if (typeof value === 'object') {
+                    if (Array.isArray(value)) v = value[1] - value[0];
+                    else if (value.y !== undefined) v = value.y;
+                    else if (value.r !== undefined) v = value.r;
+                  }
+                  if (typeof v === 'number') {
+                    if (Math.abs(v) >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+                    if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+                    if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+                    return Number.isInteger(v) ? v.toString() : Number(v.toFixed(2)).toString();
+                  }
+                  return String(v || '');
                 }
               },
               zoom: {
@@ -2413,7 +2760,20 @@ function buildChartHtml({
                 borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
                 borderWidth: 1,
                 padding: 10,
-                cornerRadius: 8
+                cornerRadius: 8,
+                callbacks: {
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) label += ': ';
+                    let val = context.parsed.y !== undefined ? context.parsed.y : (context.parsed !== undefined ? context.parsed : context.raw);
+                    if (typeof val === 'number') {
+                      label += Number.isInteger(val) ? val.toLocaleString() : Number(val.toFixed(4)).toLocaleString();
+                    } else if (val !== null && val !== undefined) {
+                      label += val;
+                    }
+                    return label;
+                  }
+                }
               }
             },
             scales: isPieOrDonut || isRadar ? {} : {
@@ -2424,44 +2784,61 @@ function buildChartHtml({
               y: {
                 grid: { display: state.showGrid, color: gridColor },
                 ticks: { color: textColor, font: { size: 11 } }
-              }
+              },
+              ...(isPareto ? {
+                y1: {
+                  position: 'right',
+                  min: 0,
+                  max: 100,
+                  grid: { drawOnChartArea: false },
+                  ticks: {
+                    color: '#f59e0b',
+                    font: { size: 11 },
+                    callback: (v) => v + '%'
+                  }
+                }
+              } : {})
             }
           },
-          plugins: (() => {
-            const arr = [{
-              id: 'customCanvasBackgroundColor',
-              beforeDraw: (chart, args, options) => {
-                const {ctx} = chart;
-                ctx.save();
-                ctx.globalCompositeOperation = 'destination-over';
-                const bgMap = {
-                  dark: '#0d1117',
-                  light: '#ffffff',
-                  midnight: '#050b14',
-                  forest: '#08140e',
-                  cyberpunk: '#0f051d',
-                  dracula: '#1e1f29',
-                  nord: '#242933',
-                  'tokyo-night': '#16161e',
-                  'solarized-light': '#fdf6e3',
-                  monokai: '#1e1f1c'
-                };
-                ctx.fillStyle = bgMap[state.theme] || (isDark ? '#0d1117' : '#ffffff');
-                ctx.fillRect(0, 0, chart.width, chart.height);
-                ctx.restore();
-              }
-            }];
-            if (typeof window.ChartDataLabels !== 'undefined') arr.push(window.ChartDataLabels);
-            if (typeof window.zoomPlugin !== 'undefined') arr.push(window.zoomPlugin);
-            return arr;
-          })()
+          plugins: [{
+            id: 'customCanvasBackgroundColor',
+            beforeDraw: (chart) => {
+              const {ctx} = chart;
+              ctx.save();
+              ctx.globalCompositeOperation = 'destination-over';
+              const bgMap = {
+                dark: '#0d1117',
+                light: '#ffffff',
+                midnight: '#050b14',
+                forest: '#08140e',
+                cyberpunk: '#0f051d',
+                dracula: '#1e1f29',
+                nord: '#242933',
+                'tokyo-night': '#16161e',
+                'solarized-light': '#fdf6e3',
+                monokai: '#1e1f1c'
+              };
+              ctx.fillStyle = bgMap[state.theme] || (isDark ? '#0d1117' : '#ffffff');
+              ctx.fillRect(0, 0, chart.width, chart.height);
+              ctx.restore();
+            }
+          }]
         };
 
-        chartInstance = new Chart(canvas.getContext('2d'), config);
+        try {
+          chartInstance = new Chart(canvas.getContext('2d'), config);
+        } catch (chartErr) {
+          console.error('[GraphUtility] Error creating chart instance:', chartErr);
+          showToast('Chart render error: ' + chartErr.message);
+        }
       }
 
       // Event Listeners setup
       function setupEventListeners() {
+        window.addEventListener('chartsReady', () => {
+          renderChart();
+        });
+
         document.getElementById('themeToggleBtn')?.addEventListener('click', cycleTheme);
 
         const leftPanel = document.getElementById('leftPanel');
@@ -2809,11 +3186,10 @@ function buildChartHtml({
           };
           
           const updatedJson = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
-          const closeScript = '<' + '/script>';
-          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\s\\S]*?(' + closeScript + ')');
+          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\\\s\\\\S]*?(<\\\\/script>)');
           htmlContent = htmlContent.replace(
             payloadRegex,
-            '$1\\n    ' + updatedJson + '\\n  $2'
+            '$1' + String.fromCharCode(10) + '    ' + updatedJson + String.fromCharCode(10) + '  $2'
           );
           
           const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
@@ -2939,13 +3315,20 @@ async function handleRenderEmbed(app, ...args) {
     let savedState = null;
     if (rawSavedState) {
       try {
-        savedState = typeof rawSavedState === "string" ? JSON.parse(rawSavedState) : rawSavedState;
+        const parsed = typeof rawSavedState === "string" ? JSON.parse(rawSavedState) : rawSavedState;
+        if (parsed && parsed.notes && noteUUID && parsed.notes[noteUUID]) {
+          savedState = parsed.notes[noteUUID];
+        } else if (parsed && parsed.notes && parsed.activeNoteUUID && parsed.notes[parsed.activeNoteUUID]) {
+          savedState = parsed.notes[parsed.activeNoteUUID];
+        } else {
+          savedState = parsed;
+        }
       } catch {
         savedState = null;
       }
     }
-    if (!noteUUID && savedState && savedState.lastActiveNoteUUID) {
-      noteUUID = savedState.lastActiveNoteUUID;
+    if (!noteUUID && savedState && savedState.noteUUID) {
+      noteUUID = savedState.noteUUID;
     }
     if (!noteUUID && app.context && app.context.noteUUID) {
       noteUUID = app.context.noteUUID;

@@ -21,14 +21,18 @@ describe('handleEmbedCall', () => {
     };
   });
 
-  it('should handle saveState and getState accurately', async () => {
-    const testState = { theme: 'forest', chartType: 'radar', selectedYIndices: [1, 2] };
-    const saveRes = await handleEmbedCall(mockApp, 'saveState', testState);
-    expect(saveRes).toEqual({ success: true });
-    expect(mockApp.setSetting).toHaveBeenCalledWith('Graph_Dashboard_State', JSON.stringify(testState));
+  it('should handle saveState and getState accurately with note isolation', async () => {
+    const testStateA = { noteUUID: 'note-A', theme: 'forest', chartType: 'radar', selectedYIndices: [1, 2] };
+    const testStateB = { noteUUID: 'note-B', theme: 'midnight', chartType: 'bar', selectedYIndices: [0] };
 
-    const getRes = await handleEmbedCall(mockApp, 'getState');
-    expect(getRes).toEqual(testState);
+    await handleEmbedCall(mockApp, 'saveState', testStateA);
+    await handleEmbedCall(mockApp, 'saveState', testStateB);
+
+    const getResA = await handleEmbedCall(mockApp, 'getState', { noteUUID: 'note-A' });
+    expect(getResA).toEqual(testStateA);
+
+    const getResB = await handleEmbedCall(mockApp, 'getState', { noteUUID: 'note-B' });
+    expect(getResB).toEqual(testStateB);
   });
 
   it('should handle refreshData by extracting updated tables and notes', async () => {
@@ -51,7 +55,7 @@ describe('handleEmbedCall', () => {
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/note-xyz');
   });
 
-  it('should handle saveImageToNote with exact table line-index positioning and attachMedia', async () => {
+  it('should handle saveImageToNote with fresh note content check and attachMedia', async () => {
     const initialMarkdown = `# Header\n\n| Table 1 Col |\n|---|\n| T1 |\n\n# Second Section\n\n| Table 2 Col |\n|---|\n| T2 |`;
     mockApp.getNoteContent.mockResolvedValue(initialMarkdown);
     mockApp.notes.find.mockResolvedValue({
@@ -68,7 +72,6 @@ describe('handleEmbedCall', () => {
     expect(mockApp.replaceNoteContent).toHaveBeenCalled();
     const replacedContent = mockApp.replaceNoteContent.mock.calls[0][1];
     expect(replacedContent).toContain('![](https://images.amplenote.com/chart.png)');
-    // Confirm image is positioned before Table 2
     const table2Pos = replacedContent.indexOf('| Table 2 Col |');
     const imagePos = replacedContent.indexOf('https://images.amplenote.com/chart.png');
     expect(imagePos).toBeLessThan(table2Pos);
@@ -94,4 +97,3 @@ describe('handleEmbedCall', () => {
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-note-uuid-999');
   });
 });
-
