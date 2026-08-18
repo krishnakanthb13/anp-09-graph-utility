@@ -51,21 +51,27 @@ describe('handleEmbedCall', () => {
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/note-xyz');
   });
 
-  it('should handle saveImageToNote with exact table replacement', async () => {
-    const initialMarkdown = `# Header\n\n| Col1 | Col2 |\n|---|---|\n| A | B |\n\nFooter text`;
+  it('should handle saveImageToNote with exact table line-index positioning and attachMedia', async () => {
+    const initialMarkdown = `# Header\n\n| Table 1 Col |\n|---|\n| T1 |\n\n# Second Section\n\n| Table 2 Col |\n|---|\n| T2 |`;
     mockApp.getNoteContent.mockResolvedValue(initialMarkdown);
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart.png')
+    });
 
     const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
       noteUUID: 'note-abc',
       dataUrl: 'data:image/png;base64,mockpngdata',
-      rawTableMarkdown: '| Col1 | Col2 |\n|---|---|\n| A | B |'
+      tableIndex: 1
     });
 
     expect(res.success).toBe(true);
     expect(mockApp.replaceNoteContent).toHaveBeenCalled();
     const replacedContent = mockApp.replaceNoteContent.mock.calls[0][1];
-    expect(replacedContent).toContain('![](data:image/png;base64,mockpngdata)');
-    expect(replacedContent).toContain('| Col1 | Col2 |');
+    expect(replacedContent).toContain('![](https://images.amplenote.com/chart.png)');
+    // Confirm image is positioned before Table 2
+    const table2Pos = replacedContent.indexOf('| Table 2 Col |');
+    const imagePos = replacedContent.indexOf('https://images.amplenote.com/chart.png');
+    expect(imagePos).toBeLessThan(table2Pos);
   });
 
   it('should handle downloadCSV', async () => {
@@ -75,4 +81,17 @@ describe('handleEmbedCall', () => {
     expect(res.csv).toContain('"Header 1","Header 2"');
     expect(res.csv).toContain('"A","B"');
   });
+
+  it('should handle copyTablesToNewNote by creating and populating new note', async () => {
+    mockApp.createNote = jest.fn().mockResolvedValue('new-note-uuid-999');
+    const res = await handleEmbedCall(mockApp, 'copyTablesToNewNote', {
+      noteName: 'Source Note',
+      markdownContent: '| Table 1 Col | Table 1 Val |\n|---|---|\n| A | 1 |'
+    });
+    expect(res.success).toBe(true);
+    expect(mockApp.createNote).toHaveBeenCalledWith('Source Note — Extracted Tables', ['tables', 'graphs', 'export']);
+    expect(mockApp.insertNoteContent).toHaveBeenCalledWith({ uuid: 'new-note-uuid-999' }, expect.stringContaining('| Table 1 Col |'));
+    expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-note-uuid-999');
+  });
 });
+

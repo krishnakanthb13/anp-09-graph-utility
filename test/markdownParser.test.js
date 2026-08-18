@@ -72,5 +72,21 @@ describe('extractStructuredTables', () => {
       ['Feb', '110', '115']
     ]);
   });
+
+  it('should correctly handle Amplenote placeholder dash headers and promote valid rows', () => {
+    const input = `| - | - | - |\n|---|---|---|\n| Product | Q1 | Q2 |\n| Widget | 50 | 75 |`;
+    const tables = extractStructuredTables(input, 'Store Note');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].headers).toEqual(['Product', 'Q1', 'Q2']);
+    expect(tables[0].dataRows).toEqual([['Widget', '50', '75']]);
+  });
+
+  it('should auto-name empty or dash headers as Column N', () => {
+    const input = `| - | Price |\n|---|---|\n| Apple | 1.50 |\n| Banana | 0.99 |`;
+    const tables = extractStructuredTables(input, 'Fruit Note');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].headers).toEqual(['Column 1', 'Price']);
+  });
 });
+
 
