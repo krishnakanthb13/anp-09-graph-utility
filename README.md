@@ -3,12 +3,14 @@
 A powerful Amplenote plugin that parses markdown tables within your notes and visualizes them as interactive, responsive, and customizable charts using Chart.js inside a dedicated workbench.
 
 - 📊 **Rich Multi-Series Visualizations**: Support for Simple (Line, Bar, Area, Histogram, Pie, Doughnut, Polar Area, Waterfall) and Advanced (Mixed Bar/Line, Pareto, Scatter, 3D Bubble, 3D Radar) charts.
+- 📐 **Flexible X-Axis & Observation Mapping**: Choose any table column as the X-axis label, or use **`Remove from X`** / **`Auto Row Index (1, 2, 3...)`** to chart pure numerical datasets across all columns without sacrificing an X column.
+- ⚡ **Dynamic Multi-Series Toggling**: Effortlessly switch between all data series with the smart **`Select All` ⇄ `Select #1`** toggle.
 - 🔄 **Dual-Layer State Persistence**: Automatically remembers where you left off (active note, table selection, chart type, selected series, custom colors, theme, and sidebar layout) across reloads, sessions, and devices.
 - 🖥️ **Flexible Workspace Launch**: Choose between a dedicated Fullscreen Dashboard tab (`app.openEmbed`) or a compact Sidebar Peek Viewer (`app.openSidebarEmbed`).
 - 🎨 **Cyclic Theming**: Switch smoothly between *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk* themes. Exports are theme-aware, embedding the exact colors you see.
 - 📈 **Interactive Pro Plugins**: Native support for scroll-wheel Zoom, Pan, and Data Labels overlays built directly into the canvas.
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
-- 🔁 **Rows ⇄ Cols Transposition**: Instantly transpose markdown tables on the fly without modifying source markdown.
+- 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers and columns without modifying source markdown.
 - 💾 **Export & Save Options**:
   - Insert chart snapshot directly above the active table in your note.
   - 1-click Copy chart to clipboard.
@@ -44,9 +46,9 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 Launches the interactive dashboard for the current note (or opens the workspace target selector).
 
 Inside the Dashboard:
-- **Left Panel**: Switch notes, refresh data, select heading-labeled tables, transpose rows/columns.
-- **Center Canvas**: Interactive Chart.js canvas with chart type switcher pills, theme cycling, and export menu.
-- **Right Panel**: Select X-axis label column, multi-select Y-axis series (with 1-click "Select All"), change color palettes, and toggle curve smoothing / fill area / grid lines.
+- **Left Panel**: Switch notes, refresh data, select heading-labeled tables, choose chart types, and toggle Rows ⇄ Cols transposition.
+- **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), replay animation button, theme cycler, and full export menu.
+- **Right Panel**: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with the smart **`Select All` / `Select #1`** button, select curated color palettes, and fine-tune animation easing, curve smoothing, area fills, and grid lines.
 
 ---
 
@@ -55,5 +57,5 @@ Inside the Dashboard:
 - `Graph Utility.js`: Plugin entry point exposing `appOption`, `noteOption`, `renderEmbed`, and `onEmbedCall` bridge.
 - `lib/features/`: Modular handlers for launching (`launcher.js`), host bridge actions (`onEmbedCall.js`), and embed generation (`renderEmbed.js`).
 - `lib/ui/htmlTemplate.js`: Responsive 3-pane interactive dashboard with Chart.js, embedded SVG favicon, and debounced state persistence.
-- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), array transposition (`tableTranspose.js`), and CSV conversion (`csvConverter.js`).
+- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), structured & array transposition (`tableTranspose.js`), and CSV conversion (`csvConverter.js`).
 - `build/graph-utility.compiled.js`: Self-contained IIFE bundled with `esbuild`.

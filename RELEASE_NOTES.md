@@ -1,3 +1,11 @@
+## v0.0.10 (2026-08-18)
+### 🚀 Enhancements & Table Engine Upgrades
+- **Flexible Observation Mapping & Auto X-Axis**: Added **`Remove from X`** button and **`Auto / Row Index (1, 2, 3...)`** mode (`selectedXIndex = -1`). Allows plotting pure numerical datasets across all columns without having to sacrifice a column as the X-axis.
+- **Smart Series Toggle (`Select All` ⇄ `Select #1`)**: The series header button now dynamically tracks selection state, allowing 1-click toggling between all series and isolating series #1.
+- **In-Memory Structured Table Transposition**: Added `transposeStructuredTable` and `transposeTableObj`, providing instant in-memory matrix transposition that preserves column metadata and prevents Markdown delimiter fragmentation.
+- **Robust Standalone Section Splitting**: Fixed section splitting to use strict standalone delimiter boundaries (`/(?:^|\n)\s*---+\s*(?:\n|$)/`), eliminating corruption of Markdown table separator rows (`| --- | --- |`).
+- **Template Literal Safety & Syntax Hardening**: Resolved token and regular expression character class escaping issues inside generated embed templates.
+
 ## v0.0.7 (2026-08-18)
 ### 🚀 Major Feature Upgrade: Interactive Chart Workbench & State Persistence
 - **Chart Type Dropdown on Left Panel**: Grouped simple (Line, Area, Bar, Histogram, Pie, Doughnut, Polar Area, Waterfall) and advanced (Mixed, Pareto, Scatter, 3D Bubble, 3D Radar) charts above the Transpose toggle.

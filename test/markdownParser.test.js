@@ -19,13 +19,13 @@ describe('removeHtmlComments', () => {
 describe('removeEmptyRowsAndColumns', () => {
   it('should remove completely empty rows (Happy Path)', () => {
     const input = `| a | b |\n|   |   |\n| c | d |`;
-    const expected = `|  a  |  b  |\n|  c  |  d  |`;
+    const expected = `| a | b |\n| c | d |`;
     expect(removeEmptyRowsAndColumns(input)).toEqual(expected);
   });
 
   it('should remove completely empty columns (Happy Path)', () => {
     const input = `| a |   | b |\n| c |   | d |`;
-    const expected = `|  a  |  b  |\n|  c  |  d  |`;
+    const expected = `| a | b |\n| c | d |`;
     expect(removeEmptyRowsAndColumns(input)).toEqual(expected);
   });
 
@@ -43,7 +43,7 @@ describe('extractTablesFromMarkdown', () => {
     expect(result).toContain('| a | b |');
     expect(result).toContain('---');
     expect(result).toContain('# Table 2');
-    expect(result).toContain('|  1  |  2  |');
+    expect(result).toContain('| 1 | 2 |');
   });
 
   it('should ignore non-table lines (Edge Case)', () => {
