@@ -48,22 +48,19 @@ function removeHtmlComments(content) {
 }
 function removeEmptyRowsAndColumns(table) {
   const rows = table.split("\n").filter((row) => row.trim().startsWith("|"));
-  const filteredRows = rows.filter((row) => {
-    const cells = row.split("|").slice(1, -1);
-    const hasContent = cells.some((cell) => cell.trim() !== "");
-    return hasContent;
-  });
-  if (filteredRows.length === 0) {
-    return "";
-  }
-  const columnCount = filteredRows[0].split("|").length - 2;
+  if (rows.length === 0) return "";
+  const parseRow = (r) => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  const parsedRows = rows.map(parseRow);
+  const columnCount = Math.max(...parsedRows.map((r) => r.length));
+  const normalized = parsedRows.map(
+    (row) => Array.from({ length: columnCount }, (_, i) => row[i] ?? "")
+  );
   const nonEmptyColumns = Array.from(
     { length: columnCount },
-    (_, colIndex) => filteredRows.some((row) => row.split("|")[colIndex + 1].trim() !== "")
+    (_, colIndex) => normalized.some((row) => row[colIndex].trim() !== "")
   );
-  const cleanedRows = filteredRows.map((row) => {
-    const cells = row.split("|").slice(1, -1);
-    const filteredCells = cells.filter((_, i) => nonEmptyColumns[i]);
+  const cleanedRows = normalized.filter((row) => row.some((cell) => cell.trim() !== "")).map((row) => {
+    const filteredCells = row.filter((_, i) => nonEmptyColumns[i]);
     return `| ${filteredCells.join(" | ")} |`;
   });
   return cleanedRows.join("\n");
@@ -237,20 +234,23 @@ function transposeMarkdownTables(content) {
     if (lines.length < 3) return section;
     const header = lines[0].trim();
     const transposedHeader = header + " (Transposed)";
-    const tableRows = lines.slice(3).map((row) => row.split("|").slice(1, -1).map((cell) => cell.trim()));
-    if (tableRows.length === 0 || tableRows[0].length === 0) {
+    const tableLines = lines.filter((line) => line.trim().startsWith("|"));
+    if (tableLines.length === 0) {
       return section;
     }
-    const restRows = tableRows.slice(2);
-    const transposedRows = transposeArray(restRows);
+    const tableRows = tableLines.map((row) => row.replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim()));
+    const isDelim = (r) => r.every((c) => !c || (c + "").replace(/[-:\s]/g, "").trim().length === 0);
+    const dataRows = tableRows.filter((row) => !isDelim(row));
+    const transposedRows = transposeArray(dataRows);
     if (transposedRows.length === 0) return section;
     const columnCount = transposedRows[0].length;
-    const firstRow = "| " + Array(columnCount).fill(" ").join(" | ") + " |";
-    const separatorRow = "| " + Array(columnCount).fill("-").join(" | ") + " |";
+    const firstRow = "| " + transposedRows[0].join(" | ") + " |";
+    const separatorRow = "| " + Array(columnCount).fill("---").join(" | ") + " |";
+    const restTransposed = transposedRows.slice(1).map((row) => "| " + row.join(" | ") + " |");
     const transposedTable = [
       firstRow,
       separatorRow,
-      ...transposedRows.map((row) => "| " + row.join(" | ") + " |")
+      ...restTransposed
     ].join("\n");
     return `${transposedHeader}
 
@@ -527,7 +527,7 @@ function buildChartHtml({
     structuredTables: structuredTables || [],
     savedState: savedState || {}
   };
-  const encodedPayload = encodeURIComponent(JSON.stringify(payloadObj));
+  const encodedPayload = JSON.stringify(payloadObj).replace(/</g, "\\u003c");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -558,17 +558,27 @@ function buildChartHtml({
         "https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"
       ];
+      let loadedCount = 0;
+      const totalScripts = urls.length;
       function loadNext() {
-        if (urls.length === 0) {
+        if (loadedCount >= totalScripts) {
           window.module = window._tempModule;
           window.exports = window._tempExports;
           window._chartScriptsLoaded = true;
+          window.dispatchEvent(new Event('chartsReady'));
           return;
         }
+        if (urls.length === 0) return;
         var script = document.createElement('script');
         script.src = urls.shift();
-        script.onload = loadNext;
-        script.onerror = loadNext;
+        script.onload = function() {
+          loadedCount++;
+          loadNext();
+        };
+        script.onerror = function() {
+          console.error("Failed to load: " + script.src);
+          // Retry logic could go here
+        };
         document.head.appendChild(script);
       }
       loadNext();
@@ -1609,12 +1619,15 @@ function buildChartHtml({
   </div>
 
   <!-- CRASH-PROOF CLIENT SCRIPT -->
+  <script type="application/json" id="plugin-payload">
+    ${encodedPayload}
+  </script>
   <script>
     (function() {
       // Safely deserialize injected payload
       let PAYLOAD = {};
       try {
-        PAYLOAD = JSON.parse(decodeURIComponent("${encodedPayload}"));
+        PAYLOAD = JSON.parse(document.getElementById('plugin-payload').textContent);
       } catch (err) {
         console.error("[GraphUtility] Payload decode error:", err);
       }
