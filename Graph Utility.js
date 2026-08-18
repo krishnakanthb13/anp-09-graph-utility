@@ -8,13 +8,13 @@ import { launchGraphDashboard, handleEmbedCall, handleRenderEmbed } from "./lib/
 
 const plugin = {
   appOption: {
-    "Open Graph Dashboard": async function(app) {
-      return launchGraphDashboard(app);
+    "Open Dashboard": async function(app) {
+      await launchGraphDashboard(app, null);
     }
   },
 
   noteOption: {
-    "Open Graph Dashboard": async function(app, noteUUID) {
+    "Open Dashboard": async function(app, noteUUID) {
       return launchGraphDashboard(app, noteUUID);
     }
   },

@@ -1,36 +1,31 @@
-## Released: Graph Utility v0.0.1
+## Released: Graph Utility v0.0.7
 
 ### LinkedIn
-Excited to announce the open-source release of the Graph Utility plugin for Amplenote! 🚀
+We've just pushed a massive v0.0.7 update to the Graph Utility plugin for Amplenote! 🚀
 
-This plugin transforms your static Markdown tables into fully interactive 2D and 3D charts directly inside your notes, bringing your data to life. We've spent time rigorously testing the core utilities, patching security vectors, and optimizing the build for the Amplenote runtime.
+This update transforms the visualizer into a world-class analytics studio. We've introduced Pro Plugins with native support for scroll-wheel Zoom, canvas Panning, and Data Labels. We also added new advanced charts (3D Bubble, 3D Radar, Pareto, Mixed, and Waterfall) and implemented a robust Sequential Script Loader to completely eliminate iframe sandbox race conditions. 
 
-Key features include:
-📈 Interactive 3D charts (powered by Chart.js)
-🔄 One-click table transposition for easy data pivoting
-📊 Instant CSV data extraction and download
+Plus, your data and charts now persist across reloads thanks to the new Dual-Layer State Persistence engine!
 
-Check out the source code and instructions here:
+Check out the update and source code here:
 https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-utility
 
-#OpenSource #Dev #Update #Amplenote #Productivity #JavaScript
+#OpenSource #Dev #Update #Amplenote #Productivity #JavaScript #DataViz
 
 ### Twitter / X
-Bring your notes to life! 🚀 The Graph Utility plugin for @amplenote is now open-source (v0.0.1). Turn markdown tables into interactive 2D/3D charts, instantly transpose rows, and extract CSVs directly from your notes. 📈👇
+Major update! 🚀 The Graph Utility plugin for @amplenote v0.0.7 is out. We've added native Zoom & Pan, Data Labels, 5 new advanced chart types (like 3D Radar & Waterfall), and Dual-Layer State Persistence so your charts never lose their settings! 📈👇
 
 https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-utility
 
 ### Bluesky
-Bring your notes to life! 🚀 The Graph Utility plugin for @amplenote is now open-source (v0.0.1). Turn markdown tables into interactive 2D/3D charts, instantly transpose rows, and extract CSVs directly from your notes. 📈👇 
+Major update! 🚀 The Graph Utility plugin for @amplenote v0.0.7 is out. We've added native Zoom & Pan, Data Labels, 5 new advanced chart types (like 3D Radar & Waterfall), and Dual-Layer State Persistence so your charts never lose their settings! 📈👇 
 
 https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-utility
 
-#OpenSource #Amplenote
+#OpenSource #Amplenote #DataViz
 
 ### Mastodon
-I just open-sourced the Graph Utility plugin (v0.0.1) for Amplenote! 🚀 It allows you to turn your static markdown tables into fully interactive 2D and 3D charts (via Chart.js) natively inside your notes. 
-
-It also supports one-click table transposition and instant CSV data extraction! 📈📊
+We've just pushed v0.0.7 for the Amplenote Graph Utility! 🚀 This release adds Pro Plugins for scroll-wheel Zoom, canvas Panning, and Data Labels. We also introduced 5 new advanced charts and a Sequential Script Loader to solve iframe race conditions. Your chart settings are now completely persistent! 📈📊
 
 Check out the source code here:
 https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-utility
@@ -38,23 +33,25 @@ https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-
 #OpenSource #Amplenote #Productivity #JavaScript #NoteTaking #ChartJS
 
 ### Reddit
-**Target Subreddits**: r/Amplenote, r/NoteTaking, r/Productivity, r/PKMS, r/SideProject, r/javascript
+**Target Subreddits**: r/Amplenote, r/NoteTaking, r/Productivity, r/PKMS, r/SideProject, r/javascript, r/DataArt
 
-**Title**: I built a plugin that turns static markdown tables into interactive 3D charts natively inside Amplenote
+**Title**: I majorly upgraded my Amplenote Graph plugin with Zoom, Panning, and Persistent States (v0.0.7)
 
 **Body**:
 Hey everyone!
 
-I just open-sourced the **Graph Utility v0.0.1** plugin for Amplenote. If you keep a lot of data, habits, or logs in tables, this plugin transforms them into fully interactive visualizations (using Chart.js) directly inside your notes.
+I've just released a massive update (v0.0.7) to the **Graph Utility** plugin for Amplenote. This update turns the simple chart renderer into a world-class analytics studio.
 
-What it does:
-- Renders 2D & 3D charts natively via embed blocks.
-- One-click row/column transposition (super useful if your data isn't structured exactly how you want to graph it).
-- Exports tables to a downloadable CSV format into a new note instantly.
+Here's what's new:
+- **Interactive Pro Plugins**: Native scroll-wheel Zoom, Canvas Panning, and Data Labels overlays!
+- **Advanced Charts**: Added 3D Bubble, 3D Radar, Pareto, Mixed (Bar/Line), and Waterfall charts.
+- **Dual-Layer State Persistence**: Your chart type, theme, colors, and selected series are saved across reloads and devices!
+- **Technical Fixes**: Built a strict Sequential Script Loader to completely eliminate the iframe sandbox race conditions that were breaking Chart.js plugins.
+- **Exporting**: Download an offline Interactive HTML Dashboard that perfectly preserves your exact chart state and theme.
 
-The backend is fully modular, secured against XSS injections, unit tested with Jest, and bundled optimally via esbuild.
-
-Check out the code and instructions on how to install it here:
+Check out the code and install it here:
 https://github.com/krishnakanthb13/amplenote_stg_plugins/tree/main/anp-09-graph-utility
 
-Let me know what you think or if you run into any issues!
+Let me know what you think of the new features!
+
+---

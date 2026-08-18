@@ -535,11 +535,45 @@ function buildChartHtml({
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>${safeName} \u2014 Graph Utility</title>
   
+  <!-- Premium Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <!-- Standalone SVG Favicon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'><path d='M3 3v18h18'/><path d='M18 9l-5 5-4-4-6 6' stroke='%2338bdf8' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='18' cy='9' r='2.5' fill='%23ec4899'/><circle cx='13' cy='14' r='2.5' fill='%23f59e0b'/><circle cx='9' cy='10' r='2.5' fill='%2310b981'/></svg>">
   
-  <!-- Chart.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <!-- Chart.js CDN & Pro Plugins (Strict Sequential Loading) -->
+  <script>
+    window._tempModule = window.module;
+    window._tempExports = window.exports;
+    window.module = undefined;
+    window.exports = undefined;
+    window.define = undefined;
+
+    (function loadScripts() {
+      var urls = [
+        "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"
+      ];
+      function loadNext() {
+        if (urls.length === 0) {
+          window.module = window._tempModule;
+          window.exports = window._tempExports;
+          window._chartScriptsLoaded = true;
+          return;
+        }
+        var script = document.createElement('script');
+        script.src = urls.shift();
+        script.onload = loadNext;
+        script.onerror = loadNext;
+        document.head.appendChild(script);
+      }
+      loadNext();
+    })();
+  </script>
 
   <style>
     /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
@@ -664,7 +698,7 @@ function buildChartHtml({
       width: 100%;
       background-color: var(--bg-body) !important;
       color: var(--text-primary) !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13px;
       overflow: hidden;
       display: flex;
@@ -1010,6 +1044,20 @@ function buildChartHtml({
       padding-right: 4px;
     }
 
+    .series-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .series-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .series-list::-webkit-scrollbar-thumb {
+      background-color: var(--border-hover);
+      border-radius: 4px;
+    }
+    .series-list::-webkit-scrollbar-thumb:hover {
+      background-color: var(--accent-primary);
+    }
+
     .series-item {
       display: flex;
       align-items: center;
@@ -1286,13 +1334,13 @@ function buildChartHtml({
               <option value="pie">\u{1F967} Pie Chart</option>
               <option value="doughnut">\u{1F369} Doughnut Chart</option>
               <option value="polarArea">\u2744\uFE0F Polar Area Chart</option>
-              <option value="waterfall">\u{1FA9C} Waterfall Chart</option>
+              <option value="waterfall">\u{1F53D} Waterfall Chart</option>
             </optgroup>
             <optgroup label="Advanced Charts">
               <option value="mixed">\u{1F500} Mixed Chart (Bar + Line)</option>
               <option value="pareto">\u{1F4C9} Pareto Chart (80/20)</option>
               <option value="scatter">\u2728 Scatter Plot</option>
-              <option value="bubble">\u{1FAE7} 3D Bubble Chart</option>
+              <option value="bubble">\u{1F535} 3D Bubble Chart</option>
               <option value="radar">\u{1F578}\uFE0F 3D Radar Chart</option>
             </optgroup>
           </select>
@@ -1496,9 +1544,27 @@ function buildChartHtml({
           </select>
         </div>
 
+        <!-- Legend Position Selector -->
+        <div class="form-group" style="margin-top: 15px;">
+          <label class="form-label" for="legendPosSelect">Legend Position</label>
+          <select id="legendPosSelect" class="select">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+
         <!-- Visual Display Options -->
-        <div class="form-group">
+        <div class="form-group" style="margin-top: 20px;">
           <span class="form-label">Display Options</span>
+          <label class="toggle-row">
+            <span>Show Data Labels</span>
+            <div class="switch">
+              <input type="checkbox" id="showDataLabelsToggle">
+              <span class="slider"></span>
+            </div>
+          </label>
           <label class="toggle-row">
             <span>Smooth Curves</span>
             <div class="switch">
@@ -1527,6 +1593,10 @@ function buildChartHtml({
               <span class="slider"></span>
             </div>
           </label>
+        </div>
+        
+        <div class="form-group" style="margin-top: 20px; font-size: 11px; color: var(--text-muted); text-align: center; font-style: italic;">
+          \u{1F4A1} Tip: Use mouse wheel to zoom. Drag to pan.
         </div>
       </div>
     </aside>
@@ -1586,6 +1656,8 @@ function buildChartHtml({
         fillArea: false,
         showGrid: true,
         showLegend: true,
+        showDataLabels: false,
+        legendPos: 'top',
         leftPanelCollapsed: false,
         rightPanelCollapsed: false
       };
@@ -1593,6 +1665,18 @@ function buildChartHtml({
       let chartInstance = null;
       let parsedTables = [];
       let saveTimeout = null;
+
+      // Register Chart.js Plugins globally if available
+      function registerPlugins() {
+        if (typeof Chart === 'undefined') return;
+        try {
+          if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+          if (typeof window.ChartDataLabels !== 'undefined') Chart.register(window.ChartDataLabels);
+        } catch(e){}
+        try {
+          if (typeof zoomPlugin !== 'undefined') Chart.register(zoomPlugin);
+        } catch(e){}
+      }
 
       // Toast notification helper
       function showToast(message) {
@@ -1637,6 +1721,8 @@ function buildChartHtml({
             if (typeof source.fillArea === 'boolean') state.fillArea = source.fillArea;
             if (typeof source.showGrid === 'boolean') state.showGrid = source.showGrid;
             if (typeof source.showLegend === 'boolean') state.showLegend = source.showLegend;
+            if (typeof source.showDataLabels === 'boolean') state.showDataLabels = source.showDataLabels;
+            if (source.legendPos) state.legendPos = source.legendPos;
             if (typeof source.activeTableIndex === 'number') state.activeTableIndex = source.activeTableIndex;
             if (typeof source.selectedXIndex === 'number') state.selectedXIndex = source.selectedXIndex;
             if (Array.isArray(source.selectedYIndices)) state.selectedYIndices = source.selectedYIndices;
@@ -1791,6 +1877,14 @@ function buildChartHtml({
         document.getElementById('chipRows').innerHTML = '<strong>' + currentTable.rowCount + '</strong> Rows';
         document.getElementById('chipCols').innerHTML = '<strong>' + currentTable.columnCount + '</strong> Cols';
 
+        // Bounds check X-Axis and Y-Axes
+        if (state.selectedXIndex >= currentTable.headers.length) {
+          state.selectedXIndex = 0;
+        }
+        if (state.selectedYIndices && state.selectedYIndices.length > 0) {
+          state.selectedYIndices = state.selectedYIndices.filter(idx => idx < currentTable.headers.length);
+        }
+
         // X-Axis dropdown
         if (xSelect) {
           xSelect.innerHTML = '';
@@ -1858,10 +1952,12 @@ function buildChartHtml({
 
       // Render Chart.js with full chart types & easing
       function renderChart() {
-        if (typeof Chart === 'undefined') {
+        if (typeof Chart === 'undefined' || !window._chartScriptsLoaded) {
           setTimeout(renderChart, 150);
           return;
         }
+        
+        registerPlugins();
 
         const canvas = document.getElementById('mainChart');
         if (!canvas) return;
@@ -1979,13 +2075,36 @@ function buildChartHtml({
             plugins: {
               legend: {
                 display: state.showLegend,
-                position: 'top',
+                position: state.legendPos || 'top',
                 labels: {
                   color: textColor,
-                  font: { size: 11, weight: '600', family: '-apple-system, sans-serif' },
+                  font: { size: 11, weight: '600', family: '"Inter", -apple-system, sans-serif' },
                   boxWidth: 12,
                   boxHeight: 12,
                   usePointStyle: true
+                }
+              },
+              datalabels: {
+                display: state.showDataLabels,
+                color: isDark ? '#ffffff' : '#1e293b',
+                backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)',
+                borderRadius: 4,
+                font: { size: 10, weight: 'bold', family: '"Inter", sans-serif' },
+                padding: 4,
+                formatter: (value) => {
+                  if (typeof value === 'object' && value !== null) return value.y;
+                  return value;
+                }
+              },
+              zoom: {
+                zoom: {
+                  wheel: { enabled: true, speed: 0.1 },
+                  pinch: { enabled: true },
+                  mode: 'xy',
+                },
+                pan: {
+                  enabled: true,
+                  mode: 'xy',
                 }
               },
               tooltip: {
@@ -2008,7 +2127,23 @@ function buildChartHtml({
                 ticks: { color: textColor, font: { size: 11 } }
               }
             }
-          }
+          },
+          plugins: (() => {
+            const arr = [{
+              id: 'customCanvasBackgroundColor',
+              beforeDraw: (chart, args, options) => {
+                const {ctx} = chart;
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = isDark ? '#0d1117' : '#ffffff';
+                ctx.fillRect(0, 0, chart.width, chart.height);
+                ctx.restore();
+              }
+            }];
+            if (typeof window.ChartDataLabels !== 'undefined') arr.push(window.ChartDataLabels);
+            if (typeof window.zoomPlugin !== 'undefined') arr.push(window.zoomPlugin);
+            return arr;
+          })()
         };
 
         chartInstance = new Chart(canvas.getContext('2d'), config);
@@ -2061,7 +2196,8 @@ function buildChartHtml({
         // Table Selection
         document.getElementById('tableSelector')?.addEventListener('change', (e) => {
           state.activeTableIndex = parseInt(e.target.value, 10) || 0;
-          state.selectedYIndices = [];
+          state.selectedXIndex = 0; // Reset X-Axis to first column on new table
+          state.selectedYIndices = []; // Reset Y series selection
           updateTableMappingControls();
           persistState();
         });
@@ -2072,6 +2208,8 @@ function buildChartHtml({
           transposeToggle.checked = state.isTransposed;
           transposeToggle.addEventListener('change', (e) => {
             state.isTransposed = e.target.checked;
+            state.selectedXIndex = 0; // Reset X-Axis on structure change
+            state.selectedYIndices = []; // Reset Y series
             parseTables();
             persistState();
             showToast(state.isTransposed ? 'Table Transposed (Rows \u21C4 Cols)' : 'Original Table Restored');
@@ -2162,6 +2300,26 @@ function buildChartHtml({
           legendToggle.checked = state.showLegend;
           legendToggle.addEventListener('change', (e) => {
             state.showLegend = e.target.checked;
+            renderChart();
+            persistState();
+          });
+        }
+
+        const dataLabelsToggle = document.getElementById('showDataLabelsToggle');
+        if (dataLabelsToggle) {
+          dataLabelsToggle.checked = state.showDataLabels;
+          dataLabelsToggle.addEventListener('change', (e) => {
+            state.showDataLabels = e.target.checked;
+            renderChart();
+            persistState();
+          });
+        }
+
+        const legendPosSelect = document.getElementById('legendPosSelect');
+        if (legendPosSelect) {
+          legendPosSelect.value = state.legendPos || 'top';
+          legendPosSelect.addEventListener('change', (e) => {
+            state.legendPos = e.target.value;
             renderChart();
             persistState();
           });
@@ -2308,7 +2466,23 @@ function buildChartHtml({
 
         // 1. Download - Interactive Charts (Recommended)
         document.getElementById('downloadInteractiveHtmlBtn')?.addEventListener('click', () => {
-          const htmlContent = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+          let htmlContent = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+          
+          // Update the embedded payload to reflect current edits and active theme
+          const updatedPayload = {
+            noteUUID: currentNoteUUID,
+            noteName: currentNoteName,
+            noteTags: PAYLOAD.noteTags || [],
+            cleanedContent: cleanedMarkdown,
+            transposeContent: transposedMarkdown,
+            structuredTables: initialTables,
+            savedState: state
+          };
+          
+          const newEncoded = encodeURIComponent(JSON.stringify(updatedPayload));
+          // Use a regex to replace the specific payload string
+          htmlContent = htmlContent.replace(/decodeURIComponent(".*?")/, 'decodeURIComponent("' + newEncoded + '")');
+          
           const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
           const link = document.createElement('a');
           link.download = (currentNoteName || 'GraphUtility').replace(/[^a-z0-9]/gi, '_') + '_Interactive_Dashboard.html';
@@ -2471,12 +2645,12 @@ async function handleRenderEmbed(app, ...args) {
 // anp-09-graph-utility/Graph Utility.js
 var plugin = {
   appOption: {
-    "Open Graph Dashboard": async function(app) {
-      return launchGraphDashboard(app);
+    "Open Dashboard": async function(app) {
+      await launchGraphDashboard(app, null);
     }
   },
   noteOption: {
-    "Open Graph Dashboard": async function(app, noteUUID) {
+    "Open Dashboard": async function(app, noteUUID) {
       return launchGraphDashboard(app, noteUUID);
     }
   },

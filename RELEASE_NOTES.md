@@ -5,12 +5,15 @@
 - **Animation Easing Selection**: Added customizable animation easing curves (*Smooth Quartic*, *Playful Bounce*, *Spring Elastic*, *Dynamic Cubic*, *Snappy Overshoot*, *Linear Uniform*, *Gentle Sine Wave*).
 - **World-Class Data Analytics Studio Styling**: Glassmorphic canvas studio with live stat chips (Rows, Cols, Series), replay animation toolbar button, and glowing theme palettes.
 - **Comprehensive Export Suite**:
-  - `Download - Interactive Charts (Recommended)` (self-contained offline dashboard with embedded Chart.js and SVG favicon)
+  - `Download - Interactive Charts (Recommended)` (self-contained offline dashboard with embedded Chart.js and exact state/theme)
   - `Download all Tables - MD` (all note tables formatted in markdown)
   - `Download all Tables - CSV` (all note tables in structured CSV)
   - `Copy all Tables from this Note to a new Note` (creates and opens a new note with all tables via `app.createNote`)
   - `Save Image Above Table in Note`, `Copy Chart Image to Clipboard`, `Download Chart as PNG`.
 - **Dual-Layer State Persistence**: Automatic state restoration (`localStorage` + `app.setSetting("Graph_Dashboard_State")`).
-- **Dedicated Dashboard Launch Options**: Fullscreen Tab (`app.openEmbed`) and Sidebar Peek Viewer (`app.openSidebarEmbed`).
+- **Dedicated Dashboard Launch Options**: Renamed App and Note options to `Open Dashboard` for cleaner global access.
 
----
+### 🐛 Bug Fixes & Infrastructure
+- **Sandbox Race Condition Fix**: Replaced HTML script tags with a strict, Sequential JavaScript script loader to completely eliminate the `Chart.helpers is undefined` iframe race condition crash.
+- **Chart.js Pro Plugins**: Explicitly injected `ChartDataLabels` and `zoomPlugin` natively to bypass global UMD conflicts.
+- **Robustness**: Replaced newer unicode emojis (Ladder, Soap Bubbles) with widely-supported fallbacks (`🔽`, `🔵`) for Waterfall and Bubble charts.

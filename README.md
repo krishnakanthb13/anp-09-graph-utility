@@ -2,23 +2,21 @@
 
 A powerful Amplenote plugin that parses markdown tables within your notes and visualizes them as interactive, responsive, and customizable charts using Chart.js inside a dedicated workbench.
 
-## Key Features
-
-- 📊 **Rich Multi-Series Visualizations**: Support for Line, Bar, Area, Stacked Bar, Pie, Donut, Radar, and Polar Area charts with multiple Y-series plotting.
+- 📊 **Rich Multi-Series Visualizations**: Support for Simple (Line, Bar, Area, Histogram, Pie, Doughnut, Polar Area, Waterfall) and Advanced (Mixed Bar/Line, Pareto, Scatter, 3D Bubble, 3D Radar) charts.
 - 🔄 **Dual-Layer State Persistence**: Automatically remembers where you left off (active note, table selection, chart type, selected series, custom colors, theme, and sidebar layout) across reloads, sessions, and devices.
 - 🖥️ **Flexible Workspace Launch**: Choose between a dedicated Fullscreen Dashboard tab (`app.openEmbed`) or a compact Sidebar Peek Viewer (`app.openSidebarEmbed`).
-- 🎨 **Cyclic Theming**: Switch smoothly between *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk* themes with real-time Chart.js palette updates.
+- 🎨 **Cyclic Theming**: Switch smoothly between *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk* themes. Exports are theme-aware, embedding the exact colors you see.
+- 📈 **Interactive Pro Plugins**: Native support for scroll-wheel Zoom, Pan, and Data Labels overlays built directly into the canvas.
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
-- 🔁 **Rows ⇄ Columns Transposition**: Instantly transpose markdown tables on the fly without modifying source markdown.
-- 💾 **Export & Save to Note**:
-  - Insert chart snapshot directly above the active table in your note (with Amplenote vertical spacing `\\\n`).
+- 🔁 **Rows ⇄ Cols Transposition**: Instantly transpose markdown tables on the fly without modifying source markdown.
+- 💾 **Export & Save Options**:
+  - Insert chart snapshot directly above the active table in your note.
   - 1-click Copy chart to clipboard.
   - Download high-res PNG image.
-  - Download self-contained offline HTML with embedded SVG favicon.
-  - Export raw table data to CSV.
+  - Download self-contained offline Interactive HTML Dashboard (preserves your exact chart state/theme).
+  - Export raw table data to CSV or MD.
+  - Copy all tables from the active note to a new note.
 - 🧭 **Host Bridge Interactivity**: Switch source notes, refresh data live, and jump directly to any note without closing the dashboard.
-
----
 
 ## Installation
 
@@ -42,7 +40,7 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 
 ## Usage
 
-### 1. `Open Graph Dashboard` (Note & App Option)
+### 1. `Open Dashboard` (Note & App Option)
 Launches the interactive dashboard for the current note (or opens the workspace target selector).
 
 Inside the Dashboard:
