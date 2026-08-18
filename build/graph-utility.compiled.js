@@ -49,15 +49,19 @@ function removeHtmlComments(content) {
 function splitTableRow(rowStr) {
   if (!rowStr || typeof rowStr !== "string") return [];
   const trimmed = rowStr.trim().replace(/^\|/, "").replace(/\|$/, "");
+  if (!trimmed.includes("\\")) {
+    return trimmed.split("|").map((s) => s.trim());
+  }
   const cells = [];
   let current = "";
   let escaped = false;
-  for (let i = 0; i < trimmed.length; i++) {
+  const len = trimmed.length;
+  for (let i = 0; i < len; i++) {
     const char = trimmed[i];
     if (escaped) {
       current += char;
       escaped = false;
-    } else if (char === "\\" && i + 1 < trimmed.length && trimmed[i + 1] === "|") {
+    } else if (char === "\\" && i + 1 < len && trimmed[i + 1] === "|") {
       escaped = true;
     } else if (char === "|") {
       cells.push(current.trim());
@@ -73,13 +77,31 @@ function removeEmptyRowsAndColumns(table) {
   if (!table || typeof table !== "string") return "";
   const rows = table.split("\n").filter((row) => row.trim().startsWith("|"));
   if (rows.length === 0) return "";
-  const parsedRows = rows.map((r) => splitTableRow(r));
-  const columnCount = Math.max(...parsedRows.map((r) => r.length));
+  const parsedRows = rows.map(splitTableRow);
+  let columnCount = 0;
+  for (let i = 0; i < parsedRows.length; i++) {
+    if (parsedRows[i].length > columnCount) {
+      columnCount = parsedRows[i].length;
+    }
+  }
   if (columnCount === 0) return "";
-  const normalized = parsedRows.map(
-    (row) => Array.from({ length: columnCount }, (_, i) => row[i] ?? "")
-  );
-  const cleanedRows = normalized.filter((row) => row.some((cell) => cell.trim() !== "")).map((row) => `| ${row.map((cell) => (cell ?? "").replace(/\|/g, "\\|")).join(" | ")} |`);
+  const cleanedRows = [];
+  for (let i = 0; i < parsedRows.length; i++) {
+    const row = parsedRows[i];
+    let hasNonEmpty = false;
+    while (row.length < columnCount) {
+      row.push("");
+    }
+    for (let c = 0; c < columnCount; c++) {
+      if (row[c] && row[c].trim() !== "") {
+        hasNonEmpty = true;
+        break;
+      }
+    }
+    if (hasNonEmpty) {
+      cleanedRows.push(`| ${row.map((cell) => (cell ?? "").replace(/\|/g, "\\|")).join(" | ")} |`);
+    }
+  }
   return cleanedRows.join("\n");
 }
 function isDelimiterOrPlaceholderRow(row) {
@@ -242,16 +264,23 @@ function extractStructuredTables(markdown, noteName = "") {
 // anp-09-graph-utility/lib/utils/tableTranspose.js
 function transposeArray(array) {
   if (!array || !Array.isArray(array) || array.length === 0) return [];
-  const maxCols = Math.max(...array.map((row) => Array.isArray(row) ? row.length : 0));
-  if (maxCols === 0) return [];
-  const result = [];
-  for (let col = 0; col < maxCols; col++) {
-    const newRow = [];
-    for (let row = 0; row < array.length; row++) {
-      const cell = array[row] && array[row][col] !== void 0 ? array[row][col] : "";
-      newRow.push(cell);
+  const numRows = array.length;
+  let maxCols = 0;
+  for (let i = 0; i < numRows; i++) {
+    const row = array[i];
+    if (Array.isArray(row) && row.length > maxCols) {
+      maxCols = row.length;
     }
-    result.push(newRow);
+  }
+  if (maxCols === 0) return [];
+  const result = new Array(maxCols);
+  for (let col = 0; col < maxCols; col++) {
+    const newRow = new Array(numRows);
+    for (let row = 0; row < numRows; row++) {
+      const cell = array[row] && array[row][col] !== void 0 ? array[row][col] : "";
+      newRow[row] = cell;
+    }
+    result[col] = newRow;
   }
   return result;
 }
@@ -1529,6 +1558,21 @@ function buildChartHtml({
     }
 
     /* Mobile / Tablet Responsiveness */
+    .panel-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(3px);
+      z-index: 35;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     @media (max-width: 900px) {
       .panel-left, .panel-right {
         position: absolute;
@@ -1536,9 +1580,21 @@ function buildChartHtml({
         bottom: 0;
         z-index: 50;
         box-shadow: var(--shadow-lg);
+        max-width: min(320px, 85vw);
+        will-change: width, transform;
       }
       .panel-left { left: 0; }
       .panel-right { right: 0; }
+
+      .panel-backdrop.active {
+        display: block;
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .toolbar-stats {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -1877,6 +1933,9 @@ function buildChartHtml({
         </div>
       </div>
     </aside>
+
+    <!-- Mobile Backdrop for Dismissing Floating Panels -->
+    <div id="panelBackdrop" class="panel-backdrop"></div>
   </div>
 
   <!-- Global Toast Notification -->
@@ -2358,6 +2417,7 @@ function buildChartHtml({
             selectAllBtn.textContent = (isAll && availableIndices.length > 1) ? 'Select #1' : 'Select All';
           }
 
+          const docFrag = document.createDocumentFragment();
           currentTable.headers.forEach((h, idx) => {
             if (idx === state.selectedXIndex && state.selectedXIndex !== -1) return;
 
@@ -2367,6 +2427,7 @@ function buildChartHtml({
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = idx;
+            checkbox.className = 'series-checkbox';
             checkbox.checked = state.selectedYIndices.includes(idx);
 
             const swatch = document.createElement('span');
@@ -2377,33 +2438,32 @@ function buildChartHtml({
             const text = document.createElement('span');
             text.textContent = h || ('Series ' + (idx + 1));
 
-            checkbox.addEventListener('change', () => {
-              const selected = [];
-              yContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-                selected.push(parseInt(cb.value, 10));
-              });
-              state.selectedYIndices = selected;
-              if (selectAllBtn) {
-                const isAll = availableIndices.length > 0 &&
-                  availableIndices.every(idx => state.selectedYIndices.includes(idx));
-                selectAllBtn.textContent = (isAll && availableIndices.length > 1) ? 'Select #1' : 'Select All';
-              }
-              renderChart();
-              persistState();
-            });
-
             item.appendChild(checkbox);
             item.appendChild(swatch);
             item.appendChild(text);
-            yContainer.appendChild(item);
+            docFrag.appendChild(item);
           });
+          yContainer.appendChild(docFrag);
         }
 
         renderChart();
       }
 
+      // Pre-compiled regex patterns for peak parsing performance
+      const RE_HTML_TAGS = /<[^>]*>/g;
+      const RE_MARKDOWN_LINK = /\\[([^\\]]+)\\]\\([^)]+\\)/g;
+      const RE_MARKDOWN_STYLES = /[*_~=\\x60]/g;
+      const RE_DATE_CHECK = /^\\d{4}[-.\\/]\\d{2}[-.\\/]\\d{2}|^\\d{2}[-.\\/]\\d{2}[-.\\/]\\d{4}/;
+      const RE_ACCOUNTING = /^\\(.*\\)$/;
+      const RE_LEADING_MINUS = /^-\\s*/;
+      const RE_METRIC_SUFFIX = /([kmbtKMBT])\\s*$/;
+      const RE_STRIP_CHARS = /[$\u20AC\xA3\u20B9\xA5%+\\u00A0]/g;
+      const RE_WHITESPACE = /\\s+/g;
+      const RE_NUMERIC_CHECK = /^-?\\d*(\\.\\d+)?(e[+-]?\\d+)?$/i;
+      const RE_PURE_NUMBER = /^-?\\d+(\\.\\d+)?$/;
+
       /**
-       * Comprehensive numeric cell parser.
+       * Comprehensive numeric cell parser with high-speed fast paths.
        * Handles accounting negatives (1,234.50) -> -1234.50, currencies, metric multipliers (k, M, B),
        * percentages, markdown styling (*bold*, _italic_), HTML tags, and European/US decimal formats.
        * Preserves null for dates, strings, and non-numeric cells to avoid false zeros.
@@ -2412,60 +2472,73 @@ function buildChartHtml({
        */
       function parseNumericCell(val) {
         if (val === null || val === undefined) return null;
+        if (typeof val === 'number') return isFinite(val) ? val : null;
         let s = String(val).trim();
-        if (!s || s === '-' || s === '\u2014' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'none') return null;
+        if (!s || s === '-' || s === '\u2014' || s === 'N/A' || s === 'n/a' || s === 'null' || s === 'none' || s === 'None') return null;
+
+        // Fast path for raw numbers (>80% of data cells)
+        if (RE_PURE_NUMBER.test(s)) {
+          const fastNum = parseFloat(s);
+          return isFinite(fastNum) ? fastNum : null;
+        }
 
         // 1. Strip HTML tags
-        s = s.replace(/<[^>]*>/g, '');
+        if (s.includes('<')) s = s.replace(RE_HTML_TAGS, '');
 
         // 2. Strip Markdown link markup: [100](url) -> 100
-        s = s.replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, '$1');
+        if (s.includes('[')) s = s.replace(RE_MARKDOWN_LINK, '$1');
 
         // 3. Strip Markdown formatting (*, _, ~, ==, backtick)
-        s = s.replace(/[*_~=]/g, '').replaceAll(String.fromCharCode(96), '').trim();
+        s = s.replace(RE_MARKDOWN_STYLES, '').trim();
         if (!s) return null;
 
+        // Fast path check after markdown strip
+        if (RE_PURE_NUMBER.test(s)) {
+          const fastNum = parseFloat(s);
+          return isFinite(fastNum) ? fastNum : null;
+        }
+
         // 4. Do not parse ISO/full dates (e.g. 2026-01-15) as numbers
-        if (/^\\d{4}[-.\\/]\\d{2}[-.\\/]\\d{2}/.test(s) || /^\\d{2}[-.\\/]\\d{2}[-.\\/]\\d{4}/.test(s)) {
+        if (RE_DATE_CHECK.test(s)) {
           return null;
         }
 
         // 5. Accounting parentheses or explicit leading minus
         let isNegative = false;
-        if (/^\\(.*\\)$/.test(s)) {
+        if (RE_ACCOUNTING.test(s)) {
           isNegative = true;
           s = s.slice(1, -1).trim();
-        } else if (/^-\\s*/.test(s)) {
+        } else if (RE_LEADING_MINUS.test(s)) {
           isNegative = true;
-          s = s.replace(/^-\\s*/, '').trim();
+          s = s.replace(RE_LEADING_MINUS, '').trim();
         }
 
         // 6. Check for metric multiplier suffix (k/K, m/M, b/B, t/T)
         let multiplier = 1;
-        const suffixMatch = s.match(/([kmbtKMBT])\\s*$/);
+        const suffixMatch = s.match(RE_METRIC_SUFFIX);
         if (suffixMatch) {
           const suf = suffixMatch[1].toUpperCase();
           if (suf === 'K') multiplier = 1e3;
           else if (suf === 'M') multiplier = 1e6;
           else if (suf === 'B') multiplier = 1e9;
           else if (suf === 'T') multiplier = 1e12;
-          s = s.replace(/([kmbtKMBT])\\s*$/, '').trim();
+          s = s.replace(RE_METRIC_SUFFIX, '').trim();
         }
 
         // 7. Strip currency symbols, +, % and non-breaking spaces
-        s = s.replace(/[$\u20AC\xA3\u20B9\xA5%+\\u00A0]/g, '').trim();
+        s = s.replace(RE_STRIP_CHARS, '').trim();
 
         // 8. Handle European vs US thousands/decimal formatting
         if (s.includes('.') && s.includes(',')) {
           if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
             // European: 1.234,56 -> 1234.56
-            s = s.replace(/\\./g, '').replace(/,/g, '.');
+            s = s.replace(/./g, '').replace(/,/g, '.');
           } else {
             // US: 1,234.56 -> 1234.56
             s = s.replace(/,/g, '');
           }
         } else if (s.includes(',')) {
-          if (/,\\d{1,2}$/.test(s)) {
+          if (/,d{1,2}$/.test(s)) {
             // European decimal: 123,5 -> 123.5
             s = s.replace(/,/g, '.');
           } else {
@@ -2475,9 +2548,9 @@ function buildChartHtml({
         }
 
         // Strip remaining inner whitespace
-        s = s.replace(/\\s+/g, '');
+        if (s.includes(' ')) s = s.replace(RE_WHITESPACE, '');
 
-        if (!/^-?\\d*(\\.\\d+)?(e[+-]?\\d+)?$/i.test(s) || s === '' || s === '.') return null;
+        if (!RE_NUMERIC_CHECK.test(s) || s === '' || s === '.') return null;
 
         const num = parseFloat(s);
         if (isNaN(num) || !isFinite(num)) return null;
@@ -2916,29 +2989,79 @@ function buildChartHtml({
 
         const leftPanel = document.getElementById('leftPanel');
         const rightPanel = document.getElementById('rightPanel');
+        const backdrop = document.getElementById('panelBackdrop');
+
+        const closeBothPanels = () => {
+          leftPanel?.classList.add('collapsed');
+          rightPanel?.classList.add('collapsed');
+          state.leftPanelCollapsed = true;
+          state.rightPanelCollapsed = true;
+          updateBackdropState();
+          persistState();
+        };
+
+        backdrop?.addEventListener('click', closeBothPanels);
 
         document.getElementById('toggleLeftPanelBtn')?.addEventListener('click', () => {
           leftPanel.classList.toggle('collapsed');
           state.leftPanelCollapsed = leftPanel.classList.contains('collapsed');
+          if (isNarrowScreen() && !state.leftPanelCollapsed) {
+            rightPanel?.classList.add('collapsed');
+            state.rightPanelCollapsed = true;
+          }
+          updateBackdropState();
           persistState();
         });
 
         document.getElementById('closeLeftPanelBtn')?.addEventListener('click', () => {
           leftPanel.classList.add('collapsed');
           state.leftPanelCollapsed = true;
+          updateBackdropState();
           persistState();
         });
 
         document.getElementById('toggleRightPanelBtn')?.addEventListener('click', () => {
           rightPanel.classList.toggle('collapsed');
           state.rightPanelCollapsed = rightPanel.classList.contains('collapsed');
+          if (isNarrowScreen() && !state.rightPanelCollapsed) {
+            leftPanel?.classList.add('collapsed');
+            state.leftPanelCollapsed = true;
+          }
+          updateBackdropState();
           persistState();
         });
 
         document.getElementById('closeRightPanelBtn')?.addEventListener('click', () => {
           rightPanel.classList.add('collapsed');
           state.rightPanelCollapsed = true;
+          updateBackdropState();
           persistState();
+        });
+
+        // Event delegation for series selection checkboxes
+        const yContainer = document.getElementById('ySeriesContainer');
+        yContainer?.addEventListener('change', (e) => {
+          if (e.target && e.target.classList.contains('series-checkbox')) {
+            const selected = [];
+            yContainer.querySelectorAll('.series-checkbox:checked').forEach(cb => {
+              selected.push(parseInt(cb.value, 10));
+            });
+            state.selectedYIndices = selected;
+            const currentTable = parsedTables[state.activeTableIndex];
+            if (currentTable) {
+              const availableIndices = currentTable.headers
+                .map((_, idx) => idx)
+                .filter(idx => idx !== state.selectedXIndex);
+              const selectAllBtn = document.getElementById('selectAllSeriesBtn');
+              if (selectAllBtn) {
+                const isAll = availableIndices.length > 0 &&
+                  availableIndices.every(idx => state.selectedYIndices.includes(idx));
+                selectAllBtn.textContent = (isAll && availableIndices.length > 1) ? 'Select #1' : 'Select All';
+              }
+            }
+            renderChart();
+            persistState();
+          }
         });
 
         // Chart Type Selector
@@ -3362,6 +3485,22 @@ function buildChartHtml({
         }
       }
 
+      // Screen resolution helper
+      function isNarrowScreen() {
+        return window.innerWidth <= 900 || (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches);
+      }
+
+      // Sync backdrop visibility
+      function updateBackdropState() {
+        const backdrop = document.getElementById('panelBackdrop');
+        if (!backdrop) return;
+        if (isNarrowScreen() && (!state.leftPanelCollapsed || !state.rightPanelCollapsed)) {
+          backdrop.classList.add('active');
+        } else {
+          backdrop.classList.remove('active');
+        }
+      }
+
       // Initialize on Load (Idempotent execution guard)
       let _isInitialized = false;
       function init() {
@@ -3370,11 +3509,23 @@ function buildChartHtml({
 
         ensureFavicon();
         loadPersistedState();
+
+        // Requirement 1: On narrow screen resolution, both panels MUST start closed on open
+        if (isNarrowScreen()) {
+          state.leftPanelCollapsed = true;
+          state.rightPanelCollapsed = true;
+        }
+
         applyTheme(state.theme);
 
-        if (state.leftPanelCollapsed) document.getElementById('leftPanel')?.classList.add('collapsed');
-        if (state.rightPanelCollapsed) document.getElementById('rightPanel')?.classList.add('collapsed');
+        const leftPanel = document.getElementById('leftPanel');
+        const rightPanel = document.getElementById('rightPanel');
+        if (state.leftPanelCollapsed) leftPanel?.classList.add('collapsed');
+        else leftPanel?.classList.remove('collapsed');
+        if (state.rightPanelCollapsed) rightPanel?.classList.add('collapsed');
+        else rightPanel?.classList.remove('collapsed');
 
+        updateBackdropState();
         setupEventListeners();
         parseTables();
       }

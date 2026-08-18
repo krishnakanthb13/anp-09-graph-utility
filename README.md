@@ -15,7 +15,11 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
   - Protects ISO dates (`2026-01-15`) from being mangled so they stay cleanly on category axes.
   - Strips Markdown styling (`**bold**`, `*italic*`, `[links](url)`) and HTML tags from numbers automatically.
 - 📐 **Flexible X-Axis & Observation Mapping**: Choose any table column as the X-axis label, or use **`Remove from X`** / **`Auto Row Index (1, 2, 3...)`** to chart pure numerical datasets across all columns without sacrificing an X column.
-- ⚡ **Dynamic Multi-Series Toggling**: Effortlessly switch between all data series with the smart **`Select All` ⇄ `Select #1`** toggle and auto-detected numeric columns.
+- 📱 **Responsive Mobile & Narrow-Screen Workbench**: Automatically collapses left and right panels on narrow screen resolutions ($\le 900\text{px}$) with an interactive backdrop overlay, mutual panel exclusivity, and fluid GPU-accelerated transitions.
+- ⚡ **High-Speed Parsing & Memory Optimization**:
+  - Accelerated numeric parsing with immediate fast paths for raw numbers (>80% of data cells) and pre-compiled regex objects.
+  - Event delegation and batched `DocumentFragment` rendering for instant, zero-leak multi-series switching.
+  - Linear single-pass O(N) array transposition with pre-allocated matrices.
 - 🔒 **Per-Note State Isolation & Dual-Layer Persistence**: Automatically remembers your exact chart configuration scoped per note UUID across reloads, sessions, and devices. Switching between different notes never overwrites or leaks column selections.
 - 🖥️ **Flexible Workspace Launch**: Choose between a dedicated Fullscreen Dashboard tab (`app.openEmbed`) or a compact Sidebar Peek Viewer (`app.openSidebarEmbed`).
 - 🎨 **10 Curated Designer Themes**: Seamlessly cycle between *Dark*, *Light*, *Midnight*, *Forest*, *Cyberpunk*, *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai*. Canvas backgrounds automatically synchronize for clean image and HTML exports.

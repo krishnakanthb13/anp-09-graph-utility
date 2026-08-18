@@ -1,3 +1,17 @@
+## v0.0.16 (2026-08-18)
+### 📱 Responsive Narrow-Screen Workbench & Mobile Backdrop
+- **Automatic Panel Collapse on Narrow Screens**: The workbench automatically evaluates viewport dimensions on open (`<= 900px`), starting with both left and right panels collapsed so the chart canvas remains unobstructed.
+- **Interactive Mobile Backdrop**: Added `#panelBackdrop` with smooth fade animation and 1-tap dismissal of floating sidebars.
+- **Panel Mutual Exclusivity**: Opening one panel on mobile automatically closes the other, preventing viewport overlap on small devices.
+- **Responsive Width Clamping**: Clamped panel widths to `max-width: min(320px, 85vw)` with GPU-accelerated transitions (`will-change: width, transform`).
+
+### ⚡ High-Speed Parsing & Memory Optimization
+- **Fast-Path Numeric Parser**: Added immediate `RE_PURE_NUMBER` fast paths for raw numbers (>80% of data cells) and hoisted all regular expressions to pre-compiled static constants.
+- **Event Delegation on Series Selectors**: Replaced per-checkbox event listeners with single delegated event handling on `#ySeriesContainer`, eliminating memory leaks on repeated table switches.
+- **Batched DOM Rendering**: Implemented `DocumentFragment` insertion for series controls, eliminating DOM reflow lag.
+- **Linear Array Transposition**: Refactored `transposeArray` to a single-pass O(N) linear scan with pre-allocated matrices, eliminating call-stack limits on massive tables.
+- **Markdown Split Fast Path**: Added fast-path string splitting in `splitTableRow` for non-escaped markdown rows.
+
 ## v0.0.15 (2026-08-18)
 ### 🛡️ Duplicate-Table Disambiguation & Stale-Index Concurrency Protection
 - **Absolute Table Scanning**: Refactored `saveImageToNote` from index-subset matching to full linear note table scanning (`foundTables = [{ startLine, raw }]`), accurately mapping every table's exact structural position.

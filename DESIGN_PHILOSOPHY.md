@@ -35,7 +35,18 @@ Data trapped inside a single proprietary view is limited. We believe users shoul
 - **Structured CSV & MD**: Instantly exports all tables for spreadsheet analysis or markdown backup.
 - **Direct Note Insertion**: Burns high-resolution PNG chart snapshots above the relevant markdown table inside Amplenote notes (with stale-content overwrite protection) for long-term review.
 
-### 5. Integrity First & Conservative Concurrency
+### 5. Responsive Ergonomics & Multi-Device Focus
+A studio tool must adapt gracefully across device form factors:
+- **Canvas as the Hero**: On narrow resolutions ($\le 900\text{px}$, tablets, and sidebar peek modes), sidebars shouldn't monopolize the view. The workbench defaults to collapsed sidebars, allowing the chart to take center stage.
+- **Fluid Touch & Mobile Dismissal**: Floating sidebars, single-tap backdrop dismissal, and mutual panel exclusivity ensure mobile interactions feel native and effortless.
+
+### 6. Performance as an Invariant & Zero-Leak Memory
+Data analytics tools often suffer from sluggishness as tables expand. We treat efficiency as a first-class design pillar:
+- **Fast-Path Parsing**: Clean numeric values take an instantaneous parse path without running heavy regex pipelines.
+- **Batched DOM Operations & Event Delegation**: Series controls avoid per-element listener churn and use `DocumentFragment` to eliminate reflow lag.
+- **Linear Transposition**: Transpose operations run in linear time with pre-allocated memory buffers, eliminating stack size limits.
+
+### 7. Integrity First & Conservative Concurrency
 When interacting with active notes, data integrity is paramount:
 - **Never Guess on Mutation**: If a note is modified concurrently while a chart image is being uploaded, the plugin refuses to blindly trust stale table indices or positional guesses.
 - **Explicit Invariant**: Unchanged notes use structural positional matching; modified notes require an unambiguous unique content match. If duplicate identical tables exist after a concurrent shift, the operation safely aborts with transparent user feedback rather than writing above the wrong table.

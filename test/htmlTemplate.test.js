@@ -94,5 +94,19 @@ describe('buildChartHtml', () => {
     const parsedUpdated = JSON.parse(updatedPayloadMatch[1]);
     expect(parsedUpdated.noteName).toBe('Updated Custom Dashboard');
   });
+
+  it('should include mobile backdrop element and narrow screen resolution handling', () => {
+    const html = buildChartHtml({
+      cleanedContent: '| Header 1 | Header 2 |\n|---|---|\n| A | 10 |',
+      noteName: 'Responsive Test Note',
+      noteUUID: 'resp-uuid-1'
+    });
+
+    expect(html).toContain('id="panelBackdrop"');
+    expect(html).toContain('class="panel-backdrop"');
+    expect(html).toContain('isNarrowScreen');
+    expect(html).toContain('series-checkbox');
+    expect(html).toContain('max-width: 900px');
+  });
 });
 
