@@ -13,6 +13,7 @@ The user should never have to manually reformat or sanitize their notes just to 
 - **Resilient Header Extraction**: Bypassing Amplenote placeholder dashes (`| - | - | - |`) and auto-naming blank columns.
 - **Flexible Observation Mapping**: Recognizing that not every dataset has a dedicated category/date column. Adding optional X-Axis (`Remove from X`) and Auto Row Indexing treats all columns as first-class numerical variables.
 - **In-Memory Transposition**: Permitting instant row-and-column switching on the fly without mutating or corrupting the source note markdown.
+- **Designer Theming & Color Psychology**: Offering 10 bespoke themes (from clean light and dark modes to Nordic arctic tones, Dracula, and cyberpunk neon) paired with 11 specialized data palettes, ensuring every visualization looks striking, readable, and publication-ready.
 
 The UI is intentionally modeled after modern, world-class dashboards (using rich dark modes, glassmorphism, and crisp typography) so the visualizer feels like a premium, integrated studio rather than a quick script.
 

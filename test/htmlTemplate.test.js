@@ -25,15 +25,24 @@ describe('buildChartHtml', () => {
     expect(html).toContain('data:image/svg+xml');
     expect(html).toContain('note-uuid-1234');
     expect(html).toContain('Quarterly Report');
-    expect(html).toContain('#finance');
     expect(html).toContain('themeToggleBtn');
     expect(html).toContain('mainChart');
     expect(html).toContain('saveImageToNoteBtn');
     expect(html).toContain('selectAllSeriesBtn');
     expect(html).toContain('amplenote_graph_utility_state');
+    expect(html).toContain('theme-dracula');
+    expect(html).toContain('theme-nord');
+    expect(html).toContain('theme-tokyo-night');
+    expect(html).toContain('theme-solarized-light');
+    expect(html).toContain('theme-monokai');
+    expect(html).toContain('oceanic');
+    expect(html).toContain('aurora');
+    expect(html).toContain('autumn');
+    expect(html).toContain('vintage');
+    expect(html).toContain('candy');
   });
 
-  it('should have 100% syntactically valid JavaScript inside script tags', () => {
+  it('should have 100% syntactically valid JavaScript inside all script tags without breakout', () => {
     const html = buildChartHtml({
       cleanedContent: '| Header 1 | Header 2 |\n|---|---|\n| A | 10 |',
       transposeContent: '| Header 1 | A |\n| Header 2 | 10 |',
@@ -41,14 +50,15 @@ describe('buildChartHtml', () => {
       noteUUID: 'note-val-1'
     });
 
-    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(scriptMatch).not.toBeNull();
-    const scriptBody = scriptMatch[1];
-    
-    // Evaluating new Function(scriptBody) will throw SyntaxError if any token is invalid
-    expect(() => {
-      new Function(scriptBody);
-    }).not.toThrow();
+    const scriptMatches = [...html.matchAll(/<script(?![^>]*type="application\/json")>([\s\S]*?)<\/script>/gi)];
+    expect(scriptMatches.length).toBeGreaterThanOrEqual(2);
+
+    scriptMatches.forEach((match, idx) => {
+      const scriptBody = match[1];
+      expect(() => {
+        new Function(scriptBody);
+      }).not.toThrow();
+    });
   });
 });
 

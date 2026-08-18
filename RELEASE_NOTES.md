@@ -1,3 +1,15 @@
+## v0.0.11 (2026-08-18)
+### 🎨 Theme & Palette Expansion
+- **10 Designer Themes**: Added *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai* alongside *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk*.
+- **11 Curated Color Palettes**: Added *Oceanic Blues & Teals*, *Cosmic Aurora Glow*, *Autumn Amber & Copper*, *Retro 80s Vintage*, and *Candy Berry Pop*.
+- **Dynamic Background Synchronization**: Live canvas background sync for all 10 themes ensures high-resolution chart snapshots and exports never have mismatched or transparent borders.
+
+### 🛡️ API Standardization & Export Hardening
+- **Amplenote SDK Compatibility**: Standardized all note lookups to `app.findNote({ uuid })` with graceful legacy fallbacks.
+- **RFC 4180 CSV Quote Escaping**: Added internal double-quote escaping (`""`) for standard spreadsheet compliance.
+- **Offline HTML Export Fidelity**: Fixed interactive HTML download script tag replacement, preserving exact customized user state and active theme in exported offline dashboards.
+- **Chart.js CDN Load Retry Guard**: Added a bounded threshold (`chartRetries < 25`) preventing infinite recursion on network drops.
+
 ## v0.0.10 (2026-08-18)
 ### 🚀 Enhancements & Table Engine Upgrades
 - **Flexible Observation Mapping & Auto X-Axis**: Added **`Remove from X`** button and **`Auto / Row Index (1, 2, 3...)`** mode (`selectedXIndex = -1`). Allows plotting pure numerical datasets across all columns without having to sacrifice a column as the X-axis.

@@ -7,7 +7,8 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 - ⚡ **Dynamic Multi-Series Toggling**: Effortlessly switch between all data series with the smart **`Select All` ⇄ `Select #1`** toggle.
 - 🔄 **Dual-Layer State Persistence**: Automatically remembers where you left off (active note, table selection, chart type, selected series, custom colors, theme, and sidebar layout) across reloads, sessions, and devices.
 - 🖥️ **Flexible Workspace Launch**: Choose between a dedicated Fullscreen Dashboard tab (`app.openEmbed`) or a compact Sidebar Peek Viewer (`app.openSidebarEmbed`).
-- 🎨 **Cyclic Theming**: Switch smoothly between *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk* themes. Exports are theme-aware, embedding the exact colors you see.
+- 🎨 **10 Curated Designer Themes**: Seamlessly cycle between *Dark*, *Light*, *Midnight*, *Forest*, *Cyberpunk*, *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai*. Canvas backgrounds automatically synchronize for clean image and HTML exports.
+- 🌈 **11 Curated Color Palettes**: Choose from *Vibrant & Modern*, *Oceanic Blues & Teals*, *Cosmic Aurora Glow*, *Cyberpunk Neon*, *Emerald Nature*, *Sunset Gradient*, *Autumn Amber & Copper*, *Retro 80s Vintage*, *Candy Berry Pop*, *Soft Pastel*, and *Monochrome Slate*.
 - 📈 **Interactive Pro Plugins**: Native support for scroll-wheel Zoom, Pan, and Data Labels overlays built directly into the canvas.
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
 - 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers and columns without modifying source markdown.
@@ -16,7 +17,7 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
   - 1-click Copy chart to clipboard.
   - Download high-res PNG image.
   - Download self-contained offline Interactive HTML Dashboard (preserves your exact chart state/theme).
-  - Export raw table data to CSV or MD.
+  - Export raw table data to RFC 4180 compliant CSV or formatted Markdown.
   - Copy all tables from the active note to a new note.
 - 🧭 **Host Bridge Interactivity**: Switch source notes, refresh data live, and jump directly to any note without closing the dashboard.
 

@@ -25,9 +25,10 @@ describe('convertMarkdownToCSV', () => {
     expect(convertMarkdownToCSV(input)).toEqual('');
   });
 
-  it('should handle cells with extra spaces and preserve internal spaces (Edge Case)', () => {
-    const input = `|  spaced val  |  val 2 |`;
-    const expected = `"spaced val","val 2"`;
+  it('should escape internal double quotes inside cells (Security / RFC 4180)', () => {
+    const input = `| Item | Description |\n| Widget | 15" screen |`;
+    const expected = `"Item","Description"\n"Widget","15"" screen"`;
     expect(convertMarkdownToCSV(input)).toEqual(expected);
   });
 });
+

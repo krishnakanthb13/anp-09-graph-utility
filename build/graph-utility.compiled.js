@@ -290,12 +290,22 @@ function convertMarkdownToCSV(content) {
     return line.includes("|");
   }).map((line) => {
     const trimmedLine = line.trim().replace(/^\|/, "").replace(/\|$/, "").trim();
-    return trimmedLine.split("|").map((cell) => `"${cell.trim()}"`).join(",");
+    return trimmedLine.split("|").map((cell) => `"${cell.trim().replace(/"/g, '""')}"`).join(",");
   }).filter((line) => line !== "");
   return csvLines.join("\n");
 }
 
 // anp-09-graph-utility/lib/features/onEmbedCall.js
+async function getNote(app, uuid) {
+  if (!uuid) return null;
+  if (typeof app.findNote === "function") {
+    return await app.findNote({ uuid });
+  }
+  if (app.notes && typeof app.notes.find === "function") {
+    return await app.notes.find(uuid);
+  }
+  return null;
+}
 async function handleEmbedCall(app, actionName, payload = {}) {
   try {
     switch (actionName) {
@@ -320,7 +330,7 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         if (!targetUUID) {
           return { success: false, error: "No active note UUID found." };
         }
-        const note = await app.notes.find(targetUUID);
+        const note = await getNote(app, targetUUID);
         if (!note) {
           return { success: false, error: "Note could not be found." };
         }
@@ -392,7 +402,7 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         if (typeof app.setSetting === "function") {
           await app.setSetting("Current_Note_UUID [Do not Edit!]", selectedUUID);
         }
-        const note = await app.notes.find(selectedUUID);
+        const note = await getNote(app, selectedUUID);
         const markdown = await app.getNoteContent({ uuid: selectedUUID });
         const cleanedContent = extractTablesFromMarkdown(markdown, note ? note.name : "");
         const transposeContent = transposeMarkdownTables(cleanedContent);
@@ -421,7 +431,7 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         if (!targetUUID || !dataUrl) {
           return { success: false, error: "Missing note UUID or image data." };
         }
-        const note = await app.notes.find(targetUUID);
+        const note = await getNote(app, targetUUID);
         const noteContent = await app.getNoteContent({ uuid: targetUUID });
         if (typeof noteContent !== "string") {
           return { success: false, error: "Could not read note content." };
@@ -495,7 +505,7 @@ ${noteContent}`;
       case "copyTablesToNewNote": {
         const { noteUUID, noteName, markdownContent } = payload;
         const sourceUUID = noteUUID || (app.settings || {})["Current_Note_UUID [Do not Edit!]"];
-        const sourceNote = sourceUUID ? await app.notes.find(sourceUUID) : null;
+        const sourceNote = sourceUUID ? await getNote(app, sourceUUID) : null;
         const title = (noteName || (sourceNote ? sourceNote.name : "Note")) + " \u2014 Extracted Tables";
         let contentToCopy = markdownContent;
         if (!contentToCopy && sourceUUID) {
@@ -716,6 +726,111 @@ function buildChartHtml({
       --shadow-sm: 0 2px 8px rgba(20, 0, 40, 0.5);
       --shadow-md: 0 6px 20px rgba(25, 0, 50, 0.6);
       --shadow-lg: 0 12px 36px rgba(35, 0, 70, 0.7);
+    }
+
+    body.theme-dracula {
+      --bg-body: #1e1f29;
+      --bg-surface: #282a36;
+      --bg-surface-elevated: #343746;
+      --bg-surface-glass: rgba(40, 42, 54, 0.88);
+      --border-color: #44475a;
+      --border-hover: #6272a4;
+      --text-primary: #f8f8f2;
+      --text-secondary: #bd93f9;
+      --text-muted: #6272a4;
+      --accent-primary: #ff79c6;
+      --accent-hover: #ff92d0;
+      --accent-glow: rgba(255, 121, 198, 0.4);
+      --accent-badge: rgba(255, 121, 198, 0.15);
+      --chart-grid: rgba(189, 147, 249, 0.1);
+      --chart-text: #f8f8f2;
+      --shadow-sm: 0 2px 8px rgba(10, 10, 20, 0.5);
+      --shadow-md: 0 6px 20px rgba(10, 10, 20, 0.6);
+      --shadow-lg: 0 12px 36px rgba(10, 10, 20, 0.7);
+    }
+
+    body.theme-nord {
+      --bg-body: #242933;
+      --bg-surface: #2e3440;
+      --bg-surface-elevated: #3b4252;
+      --bg-surface-glass: rgba(46, 52, 64, 0.88);
+      --border-color: #434c5e;
+      --border-hover: #4c566a;
+      --text-primary: #eceff4;
+      --text-secondary: #d8dee9;
+      --text-muted: #88c0d0;
+      --accent-primary: #88c0d0;
+      --accent-hover: #81a1c1;
+      --accent-glow: rgba(136, 192, 208, 0.4);
+      --accent-badge: rgba(136, 192, 208, 0.15);
+      --chart-grid: rgba(136, 192, 208, 0.1);
+      --chart-text: #d8dee9;
+      --shadow-sm: 0 2px 8px rgba(15, 20, 30, 0.5);
+      --shadow-md: 0 6px 20px rgba(15, 20, 30, 0.6);
+      --shadow-lg: 0 12px 36px rgba(15, 20, 30, 0.7);
+    }
+
+    body.theme-tokyo-night {
+      --bg-body: #16161e;
+      --bg-surface: #1a1b26;
+      --bg-surface-elevated: #24283b;
+      --bg-surface-glass: rgba(26, 27, 38, 0.88);
+      --border-color: #2f3549;
+      --border-hover: #414868;
+      --text-primary: #c0caf5;
+      --text-secondary: #9aa5ce;
+      --text-muted: #565f89;
+      --accent-primary: #7aa2f7;
+      --accent-hover: #bb9af7;
+      --accent-glow: rgba(122, 162, 247, 0.4);
+      --accent-badge: rgba(122, 162, 247, 0.15);
+      --chart-grid: rgba(122, 162, 247, 0.1);
+      --chart-text: #9aa5ce;
+      --shadow-sm: 0 2px 8px rgba(10, 10, 15, 0.5);
+      --shadow-md: 0 6px 20px rgba(10, 10, 15, 0.6);
+      --shadow-lg: 0 12px 36px rgba(10, 10, 15, 0.7);
+    }
+
+    body.theme-solarized-light {
+      --bg-body: #fdf6e3;
+      --bg-surface: #eee8d5;
+      --bg-surface-elevated: #e0d8c3;
+      --bg-surface-glass: rgba(238, 232, 213, 0.88);
+      --border-color: #d3cbb7;
+      --border-hover: #b58900;
+      --text-primary: #073642;
+      --text-secondary: #586e75;
+      --text-muted: #839496;
+      --accent-primary: #cb4b16;
+      --accent-hover: #dc322f;
+      --accent-glow: rgba(203, 75, 22, 0.3);
+      --accent-badge: rgba(203, 75, 22, 0.12);
+      --chart-grid: rgba(7, 54, 66, 0.08);
+      --chart-text: #586e75;
+      --shadow-sm: 0 1px 4px rgba(7, 54, 66, 0.08);
+      --shadow-md: 0 4px 14px rgba(7, 54, 66, 0.12);
+      --shadow-lg: 0 8px 24px rgba(7, 54, 66, 0.16);
+    }
+
+    body.theme-monokai {
+      --bg-body: #1e1f1c;
+      --bg-surface: #272822;
+      --bg-surface-elevated: #3e3d32;
+      --bg-surface-glass: rgba(39, 40, 34, 0.88);
+      --border-color: #49483e;
+      --border-hover: #75715e;
+      --text-primary: #f8f8f2;
+      --text-secondary: #a6e22e;
+      --text-muted: #75715e;
+      --accent-primary: #f92672;
+      --accent-hover: #e6db74;
+      --accent-glow: rgba(249, 38, 114, 0.4);
+      --accent-badge: rgba(249, 38, 114, 0.18);
+      --chart-grid: rgba(248, 248, 242, 0.08);
+      --chart-text: #a6e22e;
+      --shadow-sm: 0 2px 8px rgba(10, 10, 10, 0.5);
+      --shadow-md: 0 6px 20px rgba(10, 10, 10, 0.6);
+      --shadow-lg: 0 12px 36px rgba(10, 10, 10, 0.7);
     }
 
     * {
@@ -1558,9 +1673,14 @@ function buildChartHtml({
           <label class="form-label" for="paletteSelect">Color Palette</label>
           <select id="paletteSelect" class="select">
             <option value="modern">Vibrant & Modern</option>
+            <option value="oceanic">Oceanic Blues & Teals</option>
+            <option value="aurora">Cosmic Aurora Glow</option>
             <option value="neon">Cyberpunk Neon</option>
             <option value="emerald">Emerald Nature</option>
             <option value="sunset">Sunset Gradient</option>
+            <option value="autumn">Autumn Amber & Copper</option>
+            <option value="vintage">Retro 80s Vintage</option>
+            <option value="candy">Candy Berry Pop</option>
             <option value="pastel">Soft Pastel</option>
             <option value="monochrome">Monochrome Slate</option>
           </select>
@@ -1665,16 +1785,32 @@ function buildChartHtml({
       let initialTables = PAYLOAD.structuredTables || [];
       let initialSavedState = PAYLOAD.savedState || {};
 
-      // Theme Cycle List
-      const THEMES = ['dark', 'light', 'midnight', 'forest', 'cyberpunk'];
+      // Theme Cycle List (10 Distinct Themes)
+      const THEMES = [
+        'dark',
+        'light',
+        'midnight',
+        'forest',
+        'cyberpunk',
+        'dracula',
+        'nord',
+        'tokyo-night',
+        'solarized-light',
+        'monokai'
+      ];
       let currentThemeIndex = 0;
 
-      // Color Palettes
+      // Curated Color Palettes (11 Rich Presets)
       const PALETTES = {
         modern: ['#4f46e5', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6'],
+        oceanic: ['#0077b6', '#00b4d8', '#90e0ef', '#03045e', '#0096c7', '#48cae4', '#ade8f4', '#caf0f8'],
+        aurora: ['#7928ca', '#ff0080', '#00dfd8', '#79ffe1', '#f81ce5', '#50e3c2', '#ff4081', '#7c4dff'],
         neon: ['#f43f5e', '#00f5d4', '#fee440', '#7b2cbf', '#ff007f', '#00bbfa', '#f72585', '#4cc9f0'],
         emerald: ['#10b981', '#059669', '#34d399', '#6ee7b7', '#047857', '#065f46', '#a7f3d0', '#022c22'],
         sunset: ['#f97316', '#ef4444', '#e11d48', '#be123c', '#fb923c', '#f87171', '#fda4af', '#f43f5e'],
+        autumn: ['#d97706', '#b45309', '#ea580c', '#c2410c', '#f59e0b', '#dc2626', '#eab308', '#9a3412'],
+        vintage: ['#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#f3722c', '#577590', '#43aa8b'],
+        candy: ['#ff006e', '#8338ec', '#3a86ff', '#fb5607', '#ffbe0b', '#06d6a0', '#118ab2', '#e63946'],
         pastel: ['#93c5fd', '#a7f3d0', '#fde68a', '#fbcfe8', '#c4b5fd', '#bae6fd', '#fed7aa', '#ddd6fe'],
         monochrome: ['#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155', '#1e293b', '#0f172a', '#e2e8f0']
       };
@@ -2086,12 +2222,20 @@ function buildChartHtml({
         renderChart();
       }
 
+      let chartRetries = 0;
       // Render Chart.js with full chart types & easing
       function renderChart() {
         if (typeof Chart === 'undefined' || !window._chartScriptsLoaded) {
-          setTimeout(renderChart, 150);
+          if (chartRetries < 25) {
+            chartRetries++;
+            setTimeout(renderChart, 150);
+          } else {
+            console.warn('[GraphUtility] Chart library failed to load after retries.');
+            showToast('Chart library unavailable. Please check connection or reload.');
+          }
           return;
         }
+        chartRetries = 0;
         
         registerPlugins();
 
@@ -2112,7 +2256,7 @@ function buildChartHtml({
           : currentTable.dataRows.map(row => row[state.selectedXIndex] || ('Row ' + (currentTable.dataRows.indexOf(row) + 1)));
 
         const palette = PALETTES[state.palette] || PALETTES.modern;
-        const isDark = state.theme !== 'light';
+        const isDark = !['light', 'solarized-light'].includes(state.theme);
 
         const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
         const textColor = isDark ? '#a6b0c9' : '#334155';
@@ -2288,7 +2432,19 @@ function buildChartHtml({
                 const {ctx} = chart;
                 ctx.save();
                 ctx.globalCompositeOperation = 'destination-over';
-                ctx.fillStyle = isDark ? '#0d1117' : '#ffffff';
+                const bgMap = {
+                  dark: '#0d1117',
+                  light: '#ffffff',
+                  midnight: '#050b14',
+                  forest: '#08140e',
+                  cyberpunk: '#0f051d',
+                  dracula: '#1e1f29',
+                  nord: '#242933',
+                  'tokyo-night': '#16161e',
+                  'solarized-light': '#fdf6e3',
+                  monokai: '#1e1f1c'
+                };
+                ctx.fillStyle = bgMap[state.theme] || (isDark ? '#0d1117' : '#ffffff');
                 ctx.fillRect(0, 0, chart.width, chart.height);
                 ctx.restore();
               }
@@ -2650,9 +2806,13 @@ function buildChartHtml({
             savedState: state
           };
           
-          const newEncoded = encodeURIComponent(JSON.stringify(updatedPayload));
-          // Use a regex to replace the specific payload string
-          htmlContent = htmlContent.replace(/decodeURIComponent(".*?")/, 'decodeURIComponent("' + newEncoded + '")');
+          const updatedJson = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
+          const closeScript = '<' + '/script>';
+          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\s\\S]*?(' + closeScript + ')');
+          htmlContent = htmlContent.replace(
+            payloadRegex,
+            '$1\\n    ' + updatedJson + '\\n  $2'
+          );
           
           const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
           const link = document.createElement('a');
@@ -2784,7 +2944,7 @@ async function handleRenderEmbed(app, ...args) {
     let transposeContent = "";
     let structuredTables = [];
     if (noteUUID) {
-      const note = await app.notes.find(noteUUID);
+      const note = typeof app.findNote === "function" ? await app.findNote({ uuid: noteUUID }) : app.notes && typeof app.notes.find === "function" ? await app.notes.find(noteUUID) : null;
       if (note) {
         noteName = note.name || "Untitled Note";
         noteTags = note.tags || [];
