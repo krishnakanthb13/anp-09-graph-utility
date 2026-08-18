@@ -577,7 +577,21 @@ function buildChartHtml({
         };
         script.onerror = function() {
           console.error("Failed to load: " + script.src);
-          // Retry logic could go here
+          // Try fallback CDN
+          if (script.src.includes('cdnjs.cloudflare.com')) {
+            var fallback = document.createElement('script');
+            fallback.src = script.src.replace('cdnjs.cloudflare.com', 'cdn.jsdelivr.net');
+            fallback.onload = function() { loadedCount++; loadNext(); };
+            fallback.onerror = function() { 
+              console.error("Fallback also failed for: " + fallback.src);
+              loadedCount++;
+              loadNext();
+            };
+            document.head.appendChild(fallback);
+          } else {
+            loadedCount++;
+            loadNext();
+          }
         };
         document.head.appendChild(script);
       }
@@ -586,6 +600,10 @@ function buildChartHtml({
   </script>
 
   <style>
+    #mainChart {
+      width: 100%;
+      height: 100%;
+    }
     /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
        1. MODERN DESIGN SYSTEM & THEME TOKENS
        \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
@@ -1679,6 +1697,32 @@ function buildChartHtml({
       let parsedTables = [];
       let saveTimeout = null;
 
+      function destroyChart() {
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        const canvas = document.getElementById('mainChart');
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+
+      window.addEventListener('beforeunload', () => {
+        if (saveTimeout) {
+          clearTimeout(saveTimeout);
+          try {
+            localStorage.setItem('amplenote_graph_utility_state', JSON.stringify(state));
+            if (window.callAmplenotePlugin) {
+              window.callAmplenotePlugin('saveState', state).catch(() => {});
+            }
+          } catch (e) {
+            console.error('[GraphUtility] Failed to persist state on unload:', e);
+          }
+        }
+      });
+
       // Register Chart.js Plugins globally if available
       function registerPlugins() {
         if (typeof Chart === 'undefined') return;
@@ -1977,10 +2021,7 @@ function buildChartHtml({
 
         const currentTable = parsedTables[state.activeTableIndex];
         if (!currentTable || currentTable.dataRows.length === 0) {
-          if (chartInstance) {
-            chartInstance.destroy();
-            chartInstance = null;
-          }
+          destroyChart();
           return;
         }
 
@@ -2060,9 +2101,7 @@ function buildChartHtml({
 
         document.getElementById('chipSeries').innerHTML = '<strong>' + datasets.length + '</strong> Series';
 
-        if (chartInstance) {
-          chartInstance.destroy();
-        }
+        destroyChart();
 
         let chartJsType = state.chartType;
         if (['area'].includes(state.chartType)) chartJsType = 'line';
@@ -2479,8 +2518,6 @@ function buildChartHtml({
 
         // 1. Download - Interactive Charts (Recommended)
         document.getElementById('downloadInteractiveHtmlBtn')?.addEventListener('click', () => {
-          let htmlContent = '<!DOCTYPE html>' + document.documentElement.outerHTML;
-          
           // Update the embedded payload to reflect current edits and active theme
           const updatedPayload = {
             noteUUID: currentNoteUUID,
@@ -2492,9 +2529,15 @@ function buildChartHtml({
             savedState: state
           };
           
-          const newEncoded = encodeURIComponent(JSON.stringify(updatedPayload));
-          // Use a regex to replace the specific payload string
-          htmlContent = htmlContent.replace(/decodeURIComponent(".*?")/, 'decodeURIComponent("' + newEncoded + '")');
+          const safePayload = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
+          const htmlClone = document.documentElement.cloneNode(true);
+          const payloadScript = htmlClone.querySelector('#plugin-payload');
+          if (payloadScript) {
+            payloadScript.textContent = safePayload;
+          }
+          
+          const htmlContent = '<!DOCTYPE html>
+' + htmlClone.outerHTML;
           
           const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
           const link = document.createElement('a');
