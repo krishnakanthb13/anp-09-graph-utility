@@ -1,569 +1,363 @@
-Yes — I treated this upload as the **next revision of the Graph Utility audit**, and I specifically re-checked it against the Amplenote integration rather than only doing a generic JavaScript review.
+I reviewed **`graph-utility.compiled(5).js` as a fresh revision**, including the areas from the previous audit that were supposed to be fixed.
 
-The new version is **meaningfully better** than the previous one. Several of the issues we discussed have actually been fixed. But I would **not call it production-clean yet**.
+This version is **substantially better**. Several of my previous findings are now genuinely addressed, not just cosmetically.
 
-## Overall verdict
+## Revised verdict
 
-**Current status: 🟡 Good progress, but a few important integrity issues remain.**
+**🟢 ~8.5/10 — close to production-ready, but I would still fix 5 issues before calling it solid.**
 
-I would roughly rate it:
-
-* **Core JS integrity:** 8.5/10
-* **Table parsing:** 8/10
-* **Chart rendering:** 7/10
-* **State persistence:** 6/10
-* **Amplenote note-write safety:** 6/10
-* **Export correctness:** 6/10
-* **Overall production readiness:** **7.5/10**
-
-I also verified the uploaded file passes `node --check`, so there is no basic JavaScript syntax failure.
+The biggest improvement is that the code now has real implementations for the previously superficial chart types, plus per-note state and a much stronger numeric parser.
 
 ---
 
-# What you fixed correctly
+# What is now correctly fixed
 
-### 1. The parser fixes are substantially better
+### 1. Per-note state isolation — FIXED
 
-The previous malformed regex issue is gone.
+This was one of my biggest previous concerns.
 
-The host parser now correctly handles delimiter rows:
+You now maintain:
 
 ```js
-/^[\s\-:]*$/
+localStore[currentNoteUUID] = snapshot;
 ```
 
-and cell parsing is sane. 
+and the Amplenote bridge stores:
 
-The local fallback parser is also now using proper table splitting and delimiter detection. 
+```js
+stateMap.notes[incoming.noteUUID] = incoming;
+```
 
-**That was a real improvement.**
+with note-specific retrieval as well. 
+
+That is the right architecture.
+
+You also snapshot the state before asynchronous persistence:
+
+```js
+const snapshot = JSON.parse(JSON.stringify(state));
+```
+
+which eliminates the mutable-state race I previously flagged. Good.
+
+**Previous issue: FIXED.**
 
 ---
 
-### 2. Transpose handling is much more robust
+### 2. Numeric parsing — dramatically improved
 
-The old transpose implementation assumed rectangular arrays.
+You now have a dedicated `parseNumericCell()` rather than blindly stripping characters. It handles:
 
-The new implementation explicitly calculates `maxCols` and fills missing cells with `""`. 
+* accounting negatives
+* currencies
+* metric suffixes
+* percentages
+* Markdown formatting
+* HTML
+* European/US number formats
+* ISO dates
+* invalid/non-numeric values → `null`
 
-And the Markdown transpose path now uses the same principle. 
+This directly addresses several of my previous concerns.
 
-This is much safer for imperfect Markdown tables.
+Most importantly:
+
+```js
+if (isNaN(num) || !isFinite(num)) return null;
+```
+
+rather than silently converting bad values to zero.
+
+**Previous issue: FIXED.**
 
 ---
 
-### 3. Payload injection is considerably safer
+### 3. Histogram — actually implemented
 
-You now serialize the payload into:
+This is no longer just a bar-chart alias.
+
+You now:
+
+1. collect numeric values,
+2. determine min/max,
+3. calculate bins,
+4. count observations,
+5. create frequency labels.
+
+
+
+That's a genuine histogram implementation.
+
+---
+
+### 4. Pareto — actually implemented
+
+You now:
+
+* pair labels with values,
+* sort descending,
+* calculate total,
+* calculate cumulative percentage,
+* render bars + cumulative line,
+* use a second Y axis.
+
+
+
+That resolves my previous "fake Pareto" criticism.
+
+---
+
+### 5. Waterfall — substantially implemented
+
+The new implementation creates floating `[start,end]` bars and tracks the running total. 
+
+So this is now a real waterfall-style visualization rather than merely a normal bar chart.
+
+---
+
+### 6. Escaped `|` parsing — FIXED
+
+Your new `splitTableRow()` correctly recognizes:
+
+```text
+\|
+```
+
+as a literal pipe rather than a column separator. 
+
+Excellent.
+
+---
+
+### 7. CSV quote escaping — FIXED in the main export
+
+Your direct table export now does:
+
+```js
+.replace(/"/g, '""')
+```
+
+for headers and cells. 
+
+So the previous:
+
+```text
+"He said "hello""
+```
+
+problem is addressed.
+
+---
+
+### 8. CDN failure no longer loops forever
+
+You added:
+
+```js
+window._chartScriptsState = "failed";
+```
+
+and the renderer detects it. You also added a retry ceiling of 25 attempts. 
+
+So the previous infinite retry problem is **fixed**.
+
+---
+
+### 9. Interactive HTML export is much more robust
+
+This is also better.
+
+Instead of looking for the old:
+
+```js
+decodeURIComponent(...)
+```
+
+you now target:
 
 ```html
 <script type="application/json" id="plugin-payload">
 ```
 
-and parse its `textContent`. 
+and replace that payload directly. 
 
-That is a much cleaner design than embedding executable JavaScript containing arbitrary note content.
-
-The `<` escaping in the serialized payload is also a good defensive measure. 
-
-**Keep this.**
+That's a much better design.
 
 ---
 
-### 4. Chart destruction is now handled
+# The remaining issues
 
-You now explicitly destroy the old Chart.js instance before creating a new one. 
+## 🔴 1. `saveImageToNote()` still has the lost-update problem
 
-And the empty-table path also destroys the existing chart. 
+This is the **main remaining integrity issue**.
 
-That's the right lifecycle behavior.
-
----
-
-# But I found several remaining issues
-
-## 🔴 1. State is still globally shared between notes
-
-This is the biggest remaining architectural issue.
-
-You save browser state under:
-
-```js
-localStorage.setItem(
-  'amplenote_graph_utility_state',
-  JSON.stringify(state)
-)
-```
-
-and the Amplenote setting is also simply:
-
-```js
-Graph_Dashboard_State
-```
-
-
-
-But the state contains:
-
-```js
-noteUUID
-noteName
-activeTableIndex
-selectedXIndex
-selectedYIndices
-...
-```
-
-
-
-Yet `loadPersistedState()` **doesn't verify that the saved state belongs to the current note**. 
-
-### Example
-
-You use:
-
-**Note A**
+The sequence is still:
 
 ```text
-Table 3
-X = column 2
-Y = columns 4,5
-Chart = scatter
-```
-
-Then switch to:
-
-**Note B**
-
-```text
-Table 1
-only 2 columns
-```
-
-The old state can still restore things such as:
-
-```text
-activeTableIndex = 2
-selectedXIndex = 1
-selectedYIndices = [3,4]
-```
-
-You partially clamp `activeTableIndex`, but the other indices aren't comprehensively validated.
-
-### Better architecture
-
-Persist state **per note**:
-
-```js
-Graph_Dashboard_State = {
-  version: 1,
-  notes: {
-    "<noteUUID>": {
-      activeTableIndex: 0,
-      selectedXIndex: 0,
-      selectedYIndices: [],
-      chartType: "line",
-      ...
-    }
-  }
-}
-```
-
-Or use a note-keyed localStorage structure.
-
-This is especially important because Amplenote's plugin API exposes note-specific operations and note identity directly. ([Amplenote][1])
-
----
-
-# 🔴 2. The image-save operation still has a lost-update problem
-
-This remains.
-
-Your sequence is:
-
-```text
-getNoteContent()
-       ↓
 attachMedia()
-       ↓
-modify old Markdown
-       ↓
+     ↓
+getNoteContent()
+     ↓
+calculate updatedContent
+     ↓
 replaceNoteContent()
 ```
 
 
 
-The Amplenote API legitimately supports both `attachMedia()` and replacing note content, so the APIs themselves aren't wrong. ([Amplenote][1])
+There is still no check that the note changed between reading it and replacing it.
 
-The problem is the **transaction strategy**.
-
-### Race
+### Example
 
 ```text
-10:00:00  Plugin reads note
-10:00:01  User edits note
-10:00:02  Plugin attaches image
-10:00:03  Plugin replaces entire note
+T0  User opens Note
+T1  Graph Utility starts save
+T2  Plugin reads note content
+T3  User edits note
+T4  Plugin replaces entire note
 ```
 
-The user's 10:00:01 change can potentially be overwritten.
+The T3 edit can still be overwritten.
 
-This is exactly the kind of issue that matters for an Amplenote plugin because you're operating against synchronized note content.
+You improved the **error reporting**:
 
-### I would make this a MUST-FIX.
+> "Image uploaded, but note update failed..."
+
+That's good, but it doesn't prevent the race.
+
+### I would make this the #1 remaining fix.
 
 At minimum:
 
-1. Read current note content.
-2. Identify the exact target table.
-3. Immediately before mutation, re-read.
-4. Verify the target table still exists and matches the expected table signature.
-5. Only then replace.
-6. If it changed, **abort rather than overwrite**.
+```js
+const contentBefore = await app.getNoteContent(...);
 
-Even better, investigate whether `note.sections()` + section-level replacement can reduce the mutation surface. Amplenote explicitly exposes sections and section-aware content replacement. ([Amplenote][1])
+// identify exact table + create expected signature
+
+const latestContent = await app.getNoteContent(...);
+
+if (latestContent !== contentBefore) {
+    return {
+        success: false,
+        error: "Note changed while saving. Please retry."
+    };
+}
+```
+
+Even better: don't replace the entire note if a smaller section-level mutation is possible.
 
 ---
 
-# 🔴 3. `saveImageToNote()` can silently create an orphan attachment
+# 🔴 2. `attachMedia()` still happens before the concurrency check
 
-This is subtle.
+Related but distinct.
 
-You attach the image first:
+You do:
 
 ```js
 imageSrc = await note.attachMedia(dataUrl);
 ```
 
-and **then** modify the Markdown and call:
+before establishing that the note is still in the expected state. 
 
-```js
-await app.replaceNoteContent(...)
-```
-
-
-
-Suppose:
+So even if you add a stale-content check afterward:
 
 ```text
-attachMedia()      → SUCCESS
-replaceNoteContent → FAILURE
+note changed
+   ↓
+abort
+   ↓
+image already uploaded
 ```
 
-You now potentially have an uploaded image that isn't referenced by the note.
+You can still create an orphan attachment.
 
-Amplenote itself distinguishes referenced and unreferenced files in its attachment system. ([Amplenote][2])
+### Better ordering
 
-So the operation is not atomic.
+Conceptually:
 
-### Better
+```text
+read note
+↓
+locate exact table
+↓
+verify current state
+↓
+attach image
+↓
+re-read note
+↓
+verify table hasn't changed
+↓
+replace content
+```
 
-At least return a distinct error:
+There is still a tiny race between the second read and replacement, but it reduces the window substantially.
 
-> Image uploaded, but note insertion failed. The attachment may need cleanup.
-
-And ideally inspect whether the API gives you enough information to recover/remove the orphan.
+If Amplenote exposes a more atomic/section-level operation, that would be preferable.
 
 ---
 
-# 🔴 4. Numeric parsing is still dangerously permissive
+# 🔴 3. CDN failure doesn't restore `module`, `exports`, and `define`
 
-This remains one of the biggest data-integrity problems.
+This is a new issue I noticed in this revision.
 
-You do:
-
-```js
-(row[colIdx] || '').replace(/[^0-9.-]/g, '')
-```
-
-then:
+You start with:
 
 ```js
-parseFloat(...)
+window._tempModule = window.module;
+window._tempExports = window.exports;
+window.module = undefined;
+window.exports = undefined;
+window.define = undefined;
 ```
 
-
-
-This looks robust but actually creates incorrect numbers.
-
-### Examples
-
-```text
-"₹1,234.50" → 1234.50       good
-"$5,000"    → 5000          good
-"12%"       → 12            maybe wrong
-"(1,200)"   → 1200          WRONG if parentheses mean negative
-"1.2.3"     → 1.2           WRONG
-"2025-01-15"→ 2025          WRONG
-"1-2"       → 1             WRONG
-"abc123xyz" → 123           questionable
-```
-
-Most importantly:
-
-### Dates can become numbers.
-
-If someone has:
-
-```text
-Date       Revenue
-2026-01-01 500
-2026-02-01 600
-```
-
-your X-axis parser can turn the dates into approximately:
-
-```text
-2026
-2026
-```
-
-because of the stripping logic.
-
-That's a **real semantic bug**.
-
-### Better
-
-Create one strict parser:
-
-```text
-parseNumericCell()
-```
-
-with explicit handling for:
-
-* commas
-* currency symbols
-* percentages
-* parentheses negatives
-* decimal validation
-* empty values
-* dates
-* nonnumeric strings
-
-And don't convert invalid numeric cells to `0`.
-
----
-
-# 🔴 5. Invalid numeric values are still being converted to zero
-
-You have:
+but restoration happens **only when all scripts successfully load**:
 
 ```js
-return isNaN(parsed) ? 0 : parsed;
+window.module = window._tempModule;
+window.exports = window._tempExports;
 ```
 
 
 
-This is dangerous.
-
-Suppose:
-
-```text
-Revenue
-1200
-N/A
-1300
-```
-
-You chart:
-
-```text
-1200
-0
-1300
-```
-
-That visually implies **actual zero revenue**, which is false.
-
-You want:
+If a CDN script fails:
 
 ```js
-null
+window._chartScriptsState = "failed";
 ```
 
-for missing/non-numeric data.
+but you never restore those globals. 
 
-Chart.js can represent gaps/nulls much more honestly.
-
-This is an **integrity issue, not merely a visualization preference.**
-
----
-
-# 🔴 6. Histogram / Waterfall / Pareto aren't actually implemented as those chart types
-
-This is probably the most important feature-integrity issue I found.
-
-Your UI advertises:
-
-* Histogram
-* Waterfall
-* Pareto
-* Mixed
-* Bubble
-* Radar
-
-
-
-But:
-
-```js
-histogram → bar
-waterfall → bar
-pareto → bar
-```
-
-
-
-And while you declare:
-
-```js
-const isPareto = ...
-const isWaterfall = ...
-```
-
-there isn't corresponding dataset logic implementing their actual semantics. 
-
-So:
-
-### Histogram
-
-A histogram requires **binning continuous numeric values**.
-
-You're essentially producing a bar chart.
-
-### Waterfall
-
-A waterfall requires:
-
-```text
-starting value
-+ increase
-- decrease
-= ending value
-```
-
-You're not doing that.
-
-### Pareto
-
-A Pareto chart requires:
-
-```text
-sort descending
-+
-cumulative percentage line
-```
-
-You're not doing that either.
-
-### Therefore
-
-Either:
-
-**A. Actually implement them**, or
-
-**B. Remove/rename those options.**
-
-I strongly prefer A if those are advertised features.
-
-Calling something a "Pareto Chart (80/20)" when it is essentially a bar chart is misleading.
-
----
-
-# 🟠 7. "3D Bubble" and "3D Radar" are misleading names
-
-You have:
-
-```text
-3D Bubble Chart
-3D Radar Chart
-```
-
-but you're using 2D Chart.js bubble/radar representations.
-
-
-
-This isn't a functional bug, but it is a **product-integrity issue**.
-
-Rename them:
-
-```text
-Bubble Chart
-Radar Chart
-```
-
-unless you're actually implementing a third spatial dimension.
-
----
-
-# 🟠 8. CSV export is still not proper CSV escaping
-
-Current:
-
-```js
-`"${cell.trim()}"`
-```
-
-
-
-Consider:
-
-```text
-He said "hello"
-```
-
-Your CSV becomes:
-
-```csv
-"He said "hello""
-```
-
-which is invalid/ambiguous CSV.
-
-Correct CSV escaping requires:
-
-```text
-"He said ""hello"""
-```
-
-Also:
-
-```text
-a,b
-```
-
-must remain one field.
-
-And multiline cells need proper quoting.
+So after a CDN failure, the embed can leave the global environment altered.
 
 ### Fix
 
-Create:
+Capture all three:
 
 ```js
-escapeCsvCell(value)
+const previousModule = window.module;
+const previousExports = window.exports;
+const previousDefine = window.define;
 ```
 
-using:
+and restore them on **both success and failure**.
 
-```js
-String(value).replace(/"/g, '""')
-```
-
-and always wrap fields in quotes.
+I'd actually put restoration in a single `finishLoading()` / `cleanupLoaderGlobals()` function so it can't be forgotten.
 
 ---
 
-# 🟠 9. Table parsing still doesn't understand escaped `|`
+# 🟠 4. The secondary CSV converter still doesn't understand escaped pipes
 
-Both parsers fundamentally do:
+You fixed the main export, but this function remains:
 
 ```js
-.split("|")
+trimmedLine.split("|")
 ```
 
-For example:
+
+
+So:
 
 ```markdown
 | Name | Description |
@@ -571,340 +365,350 @@ For example:
 | Test | A \| B |
 ```
 
-will be interpreted as extra columns.
+can still be incorrectly exported through `convertMarkdownToCSV()`.
 
-This is a classic Markdown-table edge case.
+You effectively have **two CSV implementations**:
 
-You don't necessarily need a complete Markdown parser, but you should at least support:
+1. `convertMarkdownToCSV()`
+2. direct `parsedTables` CSV export
+
+The second is better.
+
+### Best fix
+
+Delete/consolidate the first implementation and have both pathways operate from the same parsed table representation.
+
+That gives you:
 
 ```text
-\|
+Markdown
+   ↓
+canonical parser
+   ↓
+structuredTables
+   ├── chart
+   ├── transpose
+   ├── CSV
+   └── Markdown
 ```
 
-inside cells.
-
-This matters because you're explicitly presenting this as a Markdown-table visualization tool.
+rather than multiple parsers with slightly different semantics.
 
 ---
 
-# 🟠 10. `removeEmptyRowsAndColumns()` changes the user's data model
+# 🟠 5. Invalid waterfall values still become zero
 
-This function removes completely empty rows **and columns**. 
+Your general numeric handling is now excellent.
 
-That may seem convenient, but consider:
+But Waterfall does:
 
-```text
-| Product | Q1 | Q2 | Q3 |
-| A       | 10 |    | 30 |
+```js
+const num = parseNumericCell(row[targetColIdx]) || 0;
 ```
 
-An empty Q2 may be meaningful:
+
+
+So:
 
 ```text
-Q2 = no data
+"N/A"
+""
+"unknown"
 ```
 
-Your cleaning logic can remove an entirely empty column.
+becomes:
 
-That's not necessarily safe.
+```text
+0
+```
 
-### Important distinction
+even though everywhere else you've correctly decided that invalid numeric data should be `null`.
 
-For visualization:
+This is exactly the inconsistency we want to eliminate.
 
-> "Ignore empty columns."
+### Better
 
-For data:
+```js
+const num = parseNumericCell(...);
 
-> "Delete empty columns."
+if (num === null) {
+    // skip / gap / explicitly mark missing
+}
+```
 
-Those aren't equivalent.
-
-I'd preserve the original table structure in `structuredTables` and only omit empty columns in a **display-specific transformation**.
+Do **not** turn missing data into a legitimate zero.
 
 ---
 
-# 🟠 11. CDN loading failure still leaves a retry loop
+# 🟠 6. Waterfall semantics should be made explicit
 
-You improved sequential loading, but the failure branch still does:
+The implementation assumes:
 
-```js
-script.onerror = function() {
-  console.error("Failed to load: " + script.src);
-  // Retry logic could go here
-};
+```text
+row 1 = starting value
+row 2 onward = changes
 ```
 
-while `renderChart()` does:
+because:
 
 ```js
-if (typeof Chart === 'undefined' || !window._chartScriptsLoaded) {
-    setTimeout(renderChart, 150);
-    return;
+if (rIdx === 0) {
+    floatingBars.push([0, num]);
 }
 ```
 
 
 
-So if Chart.js fails to load:
+That's a valid convention, but the user isn't told that.
+
+For example:
+
+| Month | Revenue Change |
+| ----- | -------------: |
+| Jan   |           +100 |
+| Feb   |            +20 |
+| Mar   |            -10 |
+
+A user may naturally expect this to mean:
 
 ```text
-renderChart
+Jan +100
+Feb +20
+Mar -10
+```
+
+Your chart instead treats:
+
+```text
+Jan = starting 100
+Feb = +20
+Mar = -10
+```
+
+which happens to produce the same running sequence, but the semantic interpretation matters for labels and totals.
+
+I'd document:
+
+> First value is treated as the starting total; subsequent values are changes.
+
+Or provide a dedicated **Waterfall Mode** selector:
+
+* Changes
+* Absolute totals
+
+Not necessarily a must-fix.
+
+---
+
+# 🟠 7. Histogram with one/few values could be more intelligent
+
+You force:
+
+```js
+binCount = Math.min(10, Math.max(4, ...))
+```
+
+So even one numeric observation produces four bins.
+
+That isn't wrong, but it produces a visually strange histogram.
+
+For:
+
+```text
+42
+```
+
+you effectively get:
+
+```text
+42.0–42.3   1
+42.3–42.5   0
+42.5–42.8   0
+42.8–43.0   0
+```
+
+A better rule:
+
+```text
+n < 2      → perhaps single-value summary
+n < 5      → 2–3 bins
+otherwise  → Freedman-Diaconis / Sturges
+```
+
+This is quality improvement rather than a critical bug.
+
+---
+
+# 🟠 8. Downloaded Blob URLs are never revoked
+
+You have multiple:
+
+```js
+URL.createObjectURL(blob)
+```
+
+calls for:
+
+* interactive HTML
+* Markdown
+* CSV
+
+but no:
+
+```js
+URL.revokeObjectURL(...)
+```
+
+
+
+Repeated exports in a long-lived Amplenote session can accumulate blob URLs.
+
+### Easy fix
+
+```js
+const url = URL.createObjectURL(blob);
+link.href = url;
+link.click();
+
+setTimeout(() => URL.revokeObjectURL(url), 1000);
+```
+
+Low severity, but worth fixing.
+
+---
+
+# 🟠 9. Clipboard error handling is still incomplete
+
+This:
+
+```js
+canvas.toBlob(async (blob) => {
+    await navigator.clipboard.write(...)
+});
+```
+
+is inside an outer `try/catch`, but asynchronous exceptions occurring inside the callback won't reliably be caught by that outer `try`.
+
+So a rejected:
+
+```js
+navigator.clipboard.write(...)
+```
+
+can become an unhandled rejection.
+
+Wrap the callback itself:
+
+```js
+canvas.toBlob(async (blob) => {
+    try {
+        ...
+    } catch (err) {
+        ...
+    }
+});
+```
+
+Also check:
+
+```js
+typeof ClipboardItem !== 'undefined'
+```
+
+before using it.
+
+---
+
+# 🟡 One architectural issue I'd clean up
+
+You now have **three layers of state persistence**:
+
+```text
+state
  ↓
-150ms
+localStorage per note
  ↓
-renderChart
+Amplenote Graph_Dashboard_State
  ↓
-150ms
- ↓
-...
-forever
+embedded savedState
 ```
 
-This is a real lifecycle bug.
+That's workable, but it introduces precedence complexity.
 
-### Fix
-
-Have the loader maintain:
+Currently `loadPersistedState()` prefers:
 
 ```js
-window._chartScriptsState =
-    "loading" | "ready" | "failed";
+initialSavedState
 ```
 
-Then:
+before localStorage. 
 
-```text
-loading → wait
-ready   → render
-failed  → show error
-```
+That's probably correct for an Amplenote embed, but you should consciously define the rule:
 
-No infinite retry.
+> Amplenote setting = canonical persistent state
+> localStorage = local fallback/cache
+> embedded payload = initial snapshot only
+
+Otherwise future changes could produce confusing "why did my older setting come back?" behavior.
 
 ---
 
-# 🟠 12. State save can race when switching notes
+# One thing I would NOT change
 
-This one is easy to miss.
+Your table parser architecture is now quite good.
 
-Suppose:
-
-```text
-Note A
-state changed
-↓
-persistState() schedules save in 300ms
-
-User immediately switches to Note B
-↓
-state.noteUUID = B
-↓
-persistState()
-```
-
-The timer gets reset, which is good.
-
-But because the state object is mutable and the async Amplenote call happens later, you should still snapshot the state at save time:
-
-```js
-const snapshot = structuredClone(state);
-```
-
-then persist:
-
-```js
-saveState(snapshot)
-```
-
-This makes the persistence contract deterministic.
-
----
-
-# 🟠 13. `persistState()` silently ignores Amplenote persistence failures
-
-```js
-window.callAmplenotePlugin('saveState', state).catch(() => {});
-```
-
-
-
-You're deliberately throwing away the failure.
-
-That means:
+You have:
 
 ```text
-UI says everything is saved
-Amplenote setting failed
-user later loses preferences
-```
-
-At least log it:
-
-```js
-.catch(err => console.warn(...))
-```
-
-You don't necessarily need to bother the user with a toast for every failure, but don't erase diagnostic information.
-
----
-
-# 🟠 14. The interactive HTML export replacement is fragile
-
-You do:
-
-```js
-htmlContent.replace(
-    /decodeURIComponent(".*?")/,
-    ...
-)
-```
-
-
-
-This relies on the generated HTML continuing to contain exactly that structure.
-
-A future change to the payload initialization can silently make the export stale.
-
-Since you're already using:
-
-```html
-<script type="application/json" id="plugin-payload">
-```
-
-the exported HTML should simply replace the contents of that element.
-
-That would be much more robust.
-
----
-
-# 🟢 Amplenote-specific architecture: mostly good
-
-I checked this against the current Amplenote API.
-
-Your use of:
-
-```text
-note.attachMedia()
-app.getNoteContent()
-app.replaceNoteContent()
-note.sections()
-```
-
-fits the available API model. Amplenote explicitly documents `attachMedia`, Markdown content access, section access, and whole/section content replacement. ([Amplenote][1])
-
-So I **wouldn't redesign the plugin around some imagined "native table API."**
-
-The correct model remains:
-
-```text
-Amplenote note
+splitTableRow()
       ↓
-Markdown
+parseTableLinesIntoObject()
       ↓
-Graph Utility parser
-      ↓
-structured table model
-      ↓
-Chart.js
+extractStructuredTables()
 ```
 
-That's sound.
+and transpose uses the same row-splitting behavior. 
+
+That's the direction I'd keep.
+
+I would **not introduce a large external Markdown parser** just to handle this.
 
 ---
 
-# The architecture I'd aim for
+# Final audit status
 
-You are now close to this:
+| Area                       | Previous | v5 status            |
+| -------------------------- | -------: | -------------------- |
+| Per-note state             |       🔴 | 🟢 Fixed             |
+| Numeric parsing            |       🔴 | 🟢 Major improvement |
+| Histogram                  |       🔴 | 🟢 Implemented       |
+| Pareto                     |       🔴 | 🟢 Implemented       |
+| Waterfall                  |       🔴 | 🟢 Implemented       |
+| Escaped `\|`               |       🔴 | 🟢 Fixed             |
+| CSV quotes                 |       🟠 | 🟢 Main export fixed |
+| CDN retry loop             |       🔴 | 🟢 Fixed             |
+| Interactive export payload |       🟠 | 🟢 Fixed             |
+| Note-write race            |       🔴 | 🔴 **Still present** |
+| Orphan attachment risk     |       🔴 | 🟠 **Still present** |
+| CDN global cleanup         |        — | 🟠 **New finding**   |
+| Secondary CSV parser       |       🟠 | 🟠 Still present     |
+| Waterfall invalid values   |        — | 🟠 New edge case     |
+| Blob URL cleanup           |        — | 🟠 Quality issue     |
+| Clipboard async errors     |        — | 🟠 Quality issue     |
 
-```text
-                    AMPLENOTE
-                       │
-                       ▼
-                getNoteContent()
-                       │
-                       ▼
-               ┌──────────────┐
-               │ Canonical    │
-               │ Table Parser │
-               └──────┬───────┘
-                      │
-                      ▼
-                structuredTables
-                      │
-          ┌───────────┼───────────┐
-          ▼           ▼           ▼
-       Charts       Export      Transpose
-          │           │           │
-          ▼           ▼           ▼
-      Chart.js       CSV/MD    Display model
-```
+## My recommendation
 
-And note mutation:
+**Don't do another broad refactor. You're past that stage.**
 
-```text
-Save Chart
-    │
-    ▼
-Fresh note content
-    │
-    ▼
-Locate exact table
-    │
-    ▼
-Verify table identity
-    │
-    ├── changed → ABORT
-    │
-    ▼
-Attach image
-    │
-    ▼
-Insert image
-    │
-    ▼
-Replace minimal safe content
-```
+I'd make one final targeted hardening pass:
 
-That's the part I'd prioritize.
+1. **Fix `saveImageToNote()` concurrency/integrity.**
+2. **Restore `module`/`exports`/`define` on CDN failure.**
+3. **Unify the secondary CSV converter with the canonical parser.**
+4. **Never turn invalid waterfall data into zero.**
+5. **Revoke exported Blob URLs.**
+6. **Harden clipboard async error handling.**
 
----
+After those, I'd consider this **production-grade for a Graph Utility / Amplenote plugin**, subject to actual runtime smoke tests inside Amplenote.
 
-# My revised priority list
-
-### 🔴 Must fix before calling it solid
-
-1. **Per-note state isolation**
-2. **Stale-note protection for `saveImageToNote()`**
-3. **Don't convert invalid numbers to `0`**
-4. **Strict numeric/date parsing**
-5. **Actually implement Histogram / Waterfall / Pareto**
-6. **Prevent infinite CDN render retry**
-7. **Handle attachment-success / note-update-failure integrity**
-
-### 🟠 Strongly recommended
-
-8. Proper CSV escaping
-9. Support escaped `|`
-10. Don't destructively remove empty table columns
-11. Snapshot state before asynchronous persistence
-12. Don't silently swallow state-save errors
-13. Make interactive HTML export update the JSON payload directly
-14. Rename fake "3D" chart types
-
-### 🟢 Already substantially improved
-
-* Payload safety
-* transpose handling
-* delimiter detection
-* fallback parser
-* chart destruction
-* missing-column padding
-* Amplenote bridge architecture
-* note switching
-* refresh flow
-
-**So this revision is not a reset of the previous audit — it has successfully addressed a meaningful portion of it.** The remaining work is now much more about **data correctness, note-write integrity, state isolation, and truthful chart semantics** than basic code hygiene.
-
-[1]: https://www.amplenote.com/help/developing_amplenote_plugins/note_interface?utm_source=chatgpt.com "Note Interface: Query or perform actions on a note - Amplenote"
-[2]: https://www.amplenote.com/help/attachments?utm_source=chatgpt.com "Note Attachments: Adding images, videos, audio, PDFs, Word, Excel and Powerpoint files to notes - Amplenote"
+The important point is that **v5 has successfully resolved most of the substantive findings from v4**; we're now dealing mainly with concurrency, lifecycle cleanup, and a handful of edge-case integrity issues rather than fundamental design flaws. 

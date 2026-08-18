@@ -1,3 +1,12 @@
+## v0.0.14 (2026-08-18)
+### 🛡️ Production Hardening & Concurrency Safety
+- **Optimistic Concurrency on Image Saves**: `saveImageToNote` now snapshots initial note content and performs optimistic concurrency checks against latest content, safely aborting if the note was concurrently modified or the target table shifted during image processing.
+- **Unified Global Lifecycle Cleanup**: CDN loader preserves `module`, `exports`, and `define` globals, ensuring they are reliably restored on both successful loads and network errors (`script.onerror`).
+- **Canonical CSV Conversion**: Consolidated `convertMarkdownToCSV` to leverage `extractStructuredTables`, properly escaping internal quotes (`""`), omitting markdown delimiter rows (`|---|`), and respecting escaped pipe literals (`\|`).
+- **Waterfall Null Handling**: Non-numeric or empty cells (`null`) are now skipped rather than masked as artificial zero-value delta steps.
+- **Dynamic Histogram Binning**: Dynamically scales bin counts for small sample sizes (`n <= 2`), eliminating artificial empty buckets.
+- **Export Memory Management & Clipboard Safety**: Added automatic `URL.revokeObjectURL()` lifecycle cleanup on all file downloads and hardened clipboard writes with `ClipboardItem` feature detection and async error boundaries.
+
 ## v0.0.13 (2026-08-18)
 ### 🔒 Per-Note State Isolation & Data Integrity
 - **Per-Note Workbench Isolation**: State persistence is now strictly scoped per note UUID (`version: 1, notes: { [noteUUID]: state }`). Switching between notes preserves each document's custom table, axes, and series selections without cross-note contamination.

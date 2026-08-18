@@ -77,6 +77,28 @@ describe('handleEmbedCall', () => {
     expect(imagePos).toBeLessThan(table2Pos);
   });
 
+  it('should abort saveImageToNote safely if the note content changes concurrently and target table cannot be verified', async () => {
+    const initialMarkdown = `| Table 1 Col |\n|---|\n| T1 |`;
+    // First read returns initialMarkdown, second read after attachMedia returns completely changed content without tables
+    mockApp.getNoteContent
+      .mockResolvedValueOnce(initialMarkdown)
+      .mockResolvedValueOnce(`Entirely new note text without any tables`);
+    
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart.png')
+    });
+
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-abc',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 0
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('modified during save');
+    expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();
+  });
+
   it('should handle downloadCSV', async () => {
     const markdown = `| Header 1 | Header 2 |\n| A | B |`;
     const res = await handleEmbedCall(mockApp, 'downloadCSV', { content: markdown });

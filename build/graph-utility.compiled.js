@@ -299,17 +299,19 @@ ${transposedTable}` : transposedTable;
 }
 
 // anp-09-graph-utility/lib/utils/csvConverter.js
-function convertMarkdownToCSV(content) {
-  const csvLines = content.split("\n").map((line) => {
-    const cleanedLine = line.replace(/^#+\s*/, "");
-    return cleanedLine;
-  }).filter((line) => {
-    return line.includes("|");
-  }).map((line) => {
-    const trimmedLine = line.trim().replace(/^\|/, "").replace(/\|$/, "").trim();
-    return trimmedLine.split("|").map((cell) => `"${cell.trim().replace(/"/g, '""')}"`).join(",");
-  }).filter((line) => line !== "");
-  return csvLines.join("\n");
+function convertMarkdownToCSV(content, noteName = "") {
+  if (!content || typeof content !== "string") return "";
+  const tables = extractStructuredTables(content, noteName);
+  if (!tables || tables.length === 0) return "";
+  const csvBlocks = [];
+  tables.forEach((tbl) => {
+    const headerLine = tbl.headers.map((h) => `"${(h || "").replace(/"/g, '""')}"`).join(",");
+    const rowLines = tbl.dataRows.map(
+      (row) => row.map((cell) => `"${(cell || "").replace(/"/g, '""')}"`).join(",")
+    );
+    csvBlocks.push([headerLine, ...rowLines].join("\n"));
+  });
+  return csvBlocks.join("\n\n");
 }
 
 // anp-09-graph-utility/lib/features/onEmbedCall.js
@@ -469,6 +471,13 @@ async function handleEmbedCall(app, actionName, payload = {}) {
           return { success: false, error: "Missing note UUID or image data." };
         }
         const note = await getNote(app, targetUUID);
+        if (!note && !app.getNoteContent) {
+          return { success: false, error: "Note could not be found." };
+        }
+        const initialContent = await app.getNoteContent({ uuid: targetUUID });
+        if (typeof initialContent !== "string") {
+          return { success: false, error: "Could not read initial note content." };
+        }
         let imageSrc = dataUrl;
         let mediaAttached = false;
         if (note && typeof note.attachMedia === "function") {
@@ -494,14 +503,14 @@ async function handleEmbedCall(app, actionName, payload = {}) {
 \\
 
 `;
-        const noteContent = await app.getNoteContent({ uuid: targetUUID });
-        if (typeof noteContent !== "string") {
+        const freshContent = await app.getNoteContent({ uuid: targetUUID });
+        if (typeof freshContent !== "string") {
           return {
             success: false,
             error: mediaAttached ? "Image uploaded, but could not read latest note content to insert." : "Could not read note content."
           };
         }
-        const lines = noteContent.split("\n");
+        const lines = freshContent.split("\n");
         let currentTblIdx = -1;
         let inTable = false;
         let targetLine = -1;
@@ -528,11 +537,17 @@ async function handleEmbedCall(app, actionName, payload = {}) {
             ...lines.slice(targetLine)
           ];
           updatedContent = newLines.join("\n");
-        } else if (rawTableMarkdown && noteContent.includes(rawTableMarkdown)) {
-          updatedContent = noteContent.replace(rawTableMarkdown, `${imageBlock}${rawTableMarkdown}`);
+        } else if (rawTableMarkdown && freshContent.includes(rawTableMarkdown)) {
+          updatedContent = freshContent.replace(rawTableMarkdown, `${imageBlock}${rawTableMarkdown}`);
         } else {
+          if (initialContent !== freshContent) {
+            return {
+              success: false,
+              error: mediaAttached ? "Image uploaded, but the note was modified during save and the target table could not be verified. Please retry." : "Note was modified during save. Please retry."
+            };
+          }
           updatedContent = `${imageBlock}
-${noteContent}`;
+${freshContent}`;
         }
         try {
           await app.replaceNoteContent({ uuid: targetUUID }, updatedContent);
@@ -628,26 +643,32 @@ function buildChartHtml({
   
   <!-- Chart.js CDN & Pro Plugins (Strict Sequential Loading with State Tracking) -->
   <script>
-    window._tempModule = window.module;
-    window._tempExports = window.exports;
-    window.module = undefined;
-    window.exports = undefined;
-    window.define = undefined;
-    window._chartScriptsState = "loading";
+    (function() {
+      var _tempModule = window.module;
+      var _tempExports = window.exports;
+      var _tempDefine = window.define;
+      window.module = undefined;
+      window.exports = undefined;
+      window.define = undefined;
+      window._chartScriptsState = "loading";
 
-    (function loadScripts() {
+      function cleanupLoaderGlobals() {
+        window.module = _tempModule;
+        window.exports = _tempExports;
+        window.define = _tempDefine;
+      }
+
       var urls = [
         "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"
       ];
-      let loadedCount = 0;
-      const totalScripts = urls.length;
+      var loadedCount = 0;
+      var totalScripts = urls.length;
       function loadNext() {
         if (loadedCount >= totalScripts) {
-          window.module = window._tempModule;
-          window.exports = window._tempExports;
+          cleanupLoaderGlobals();
           window._chartScriptsLoaded = true;
           window._chartScriptsState = "ready";
           window.dispatchEvent(new Event('chartsReady'));
@@ -662,6 +683,7 @@ function buildChartHtml({
         };
         script.onerror = function() {
           console.error("Failed to load: " + script.src);
+          cleanupLoaderGlobals();
           window._chartScriptsState = "failed";
           window.dispatchEvent(new CustomEvent('chartsError', { detail: { failedSrc: script.src } }));
         };
@@ -2538,7 +2560,7 @@ function buildChartHtml({
           } else {
             const minVal = Math.min(...nums);
             const maxVal = Math.max(...nums);
-            const binCount = Math.min(10, Math.max(4, Math.ceil(Math.log2(nums.length) + 1)));
+            const binCount = Math.min(10, Math.max(nums.length <= 2 ? nums.length : 3, Math.ceil(Math.log2(nums.length) + 1)));
             const range = (maxVal - minVal) || 1;
             const binWidth = range / binCount;
 
@@ -2581,11 +2603,12 @@ function buildChartHtml({
           const borderColors = [];
 
           currentTable.dataRows.forEach((row, rIdx) => {
-            const num = parseNumericCell(row[targetColIdx]) || 0;
+            const num = parseNumericCell(row[targetColIdx]);
+            if (num === null) return;
             const prev = running;
             running += num;
 
-            if (rIdx === 0) {
+            if (floatingBars.length === 0) {
               floatingBars.push([0, num]);
               barColors.push('#6366f1cc');
               borderColors.push('#6366f1');
@@ -3145,15 +3168,23 @@ function buildChartHtml({
         document.getElementById('copyImageClipboardBtn')?.addEventListener('click', async () => {
           const canvas = document.getElementById('mainChart');
           if (!canvas) return;
+          if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function' || typeof ClipboardItem === 'undefined') {
+            showToast('Clipboard image copying not supported in this browser');
+            return;
+          }
           try {
             canvas.toBlob(async (blob) => {
-              if (blob && navigator.clipboard && navigator.clipboard.write) {
+              if (!blob) {
+                showToast('Failed to generate image blob');
+                return;
+              }
+              try {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 showToast('Chart image copied to clipboard!');
-              } else {
-                showToast('Clipboard access unavailable');
+              } catch (clipErr) {
+                showToast('Clipboard write failed: ' + clipErr.message);
               }
-            });
+            }, 'image/png');
           } catch (err) {
             showToast('Failed to copy image: ' + err.message);
           }
@@ -3195,8 +3226,10 @@ function buildChartHtml({
           const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
           const link = document.createElement('a');
           link.download = (currentNoteName || 'GraphUtility').replace(/[^a-z0-9]/gi, '_') + '_Interactive_Dashboard.html';
-          link.href = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          link.href = url;
           link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
           showToast('Interactive Charts HTML downloaded');
         });
 
@@ -3206,8 +3239,10 @@ function buildChartHtml({
           const blob = new Blob([content || '# No Tables Found'], { type: 'text/markdown;charset=utf-8' });
           const link = document.createElement('a');
           link.download = (currentNoteName || 'Note').replace(/[^a-z0-9]/gi, '_') + '_Tables.md';
-          link.href = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          link.href = url;
           link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
           showToast('Markdown Tables downloaded (.md)');
         });
 
@@ -3229,8 +3264,10 @@ function buildChartHtml({
           const blob = new Blob([fullCsv], { type: 'text/csv;charset=utf-8' });
           const link = document.createElement('a');
           link.download = (currentNoteName || 'Note').replace(/[^a-z0-9]/gi, '_') + '_All_Tables.csv';
-          link.href = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          link.href = url;
           link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
           showToast('All Tables CSV downloaded (.csv)');
         });
 
