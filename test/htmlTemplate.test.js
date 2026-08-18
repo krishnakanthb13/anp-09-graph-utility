@@ -21,8 +21,9 @@ describe('buildChartHtml', () => {
     });
 
     expect(html).toContain('<!DOCTYPE html>');
-    expect(html).toContain('Quarterly Report — Graph Utility');
-    expect(html).toContain('data:image/svg+xml');
+    expect(html).toContain('data:image/png;base64');
+    expect(html).toContain('rel="shortcut icon"');
+    expect(html).toContain('rel="apple-touch-icon"');
     expect(html).toContain('note-uuid-1234');
     expect(html).toContain('Quarterly Report');
     expect(html).toContain('themeToggleBtn');

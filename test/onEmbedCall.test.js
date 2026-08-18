@@ -89,7 +89,7 @@ describe('handleEmbedCall', () => {
       markdownContent: '| Table 1 Col | Table 1 Val |\n|---|---|\n| A | 1 |'
     });
     expect(res.success).toBe(true);
-    expect(mockApp.createNote).toHaveBeenCalledWith('Source Note — Extracted Tables', ['tables', 'graphs', 'export']);
+    expect(mockApp.createNote).toHaveBeenCalledWith('Source Note — Extracted Tables', ['-reports/-tables-copy']);
     expect(mockApp.insertNoteContent).toHaveBeenCalledWith({ uuid: 'new-note-uuid-999' }, expect.stringContaining('| Table 1 Col |'));
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-note-uuid-999');
   });

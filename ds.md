@@ -36,10 +36,18 @@ All critical issues, API incompatibilities, and security vulnerabilities identif
 - **File**: `lib/utils/tableTranspose.js`
 - **Resolution**: Handles ragged 2D arrays, maintains column clean header fallbacks (`Column 1, 2, ...`), and synchronizes row/column dimension counts.
 
-### 7. **Expanded Theme & Color Palette Library (New)**
+### 7. **Expanded Theme & Color Palette Library (Resolved)**
 - **File**: `lib/ui/htmlTemplate.js`
 - **10 Curated Themes**: `dark`, `light`, `midnight`, `forest`, `cyberpunk`, `dracula`, `nord`, `tokyo-night`, `solarized-light`, `monokai`.
 - **11 Color Palettes**: `modern`, `oceanic`, `aurora`, `neon`, `emerald`, `sunset`, `autumn`, `vintage`, `candy`, `pastel`, `monochrome`.
+
+### 8. **Universal 32x32 PNG Base64 Favicon (Resolved)**
+- **File**: `lib/ui/htmlTemplate.js`
+- **Resolution**: Chrome and Chromium-based browsers (Edge, Brave) do not display SVG favicons when opening local files via the `file:///` protocol. Replaced with an embedded 32x32 RGBA PNG base64 data URI along with dynamic DOM injection (`ensureFavicon()`), ensuring immediate tab icon rendering across all browsers (Chrome, Edge, Firefox, Safari) for offline downloaded interactive HTML dashboards.
+
+### 9. **Standardized Note Tag for Copied Tables (Resolved)**
+- **File**: `lib/features/onEmbedCall.js`
+- **Resolution**: Standardized the target tag array to `['-reports/-tables-copy']` in `copyTablesToNewNote` matching plugin design specifications.
 
 ---
 
