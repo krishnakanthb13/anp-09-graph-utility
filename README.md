@@ -1,54 +1,61 @@
 # Graph Utility Plugin
 
-A powerful Amplenote plugin that parses markdown tables within your notes and visualizes them as interactive, responsive, and customizable charts using Chart.js.
+A powerful Amplenote plugin that parses markdown tables within your notes and visualizes them as interactive, responsive, and customizable charts using Chart.js inside a dedicated workbench.
 
-## Features
+## Key Features
 
-- **Interactive Charts**: Render 2D and 3D charts natively inside your notes.
-- **Table Support**: Automatically detects and extracts multiple Markdown tables from the current note.
-- **Transpose**: Easily swap rows and columns for graphing depending on your data structure.
-- **CSV Export**: Instantly parse your markdown tables and generate a downloadable CSV copy of the raw data into a new note.
+- 📊 **Rich Multi-Series Visualizations**: Support for Line, Bar, Area, Stacked Bar, Pie, Donut, Radar, and Polar Area charts with multiple Y-series plotting.
+- 🔄 **Dual-Layer State Persistence**: Automatically remembers where you left off (active note, table selection, chart type, selected series, custom colors, theme, and sidebar layout) across reloads, sessions, and devices.
+- 🖥️ **Flexible Workspace Launch**: Choose between a dedicated Fullscreen Dashboard tab (`app.openEmbed`) or a compact Sidebar Peek Viewer (`app.openSidebarEmbed`).
+- 🎨 **Cyclic Theming**: Switch smoothly between *Dark*, *Light*, *Midnight*, *Forest*, and *Cyberpunk* themes with real-time Chart.js palette updates.
+- 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
+- 🔁 **Rows ⇄ Columns Transposition**: Instantly transpose markdown tables on the fly without modifying source markdown.
+- 💾 **Export & Save to Note**:
+  - Insert chart snapshot directly above the active table in your note (with Amplenote vertical spacing `\\\n`).
+  - 1-click Copy chart to clipboard.
+  - Download high-res PNG image.
+  - Download self-contained offline HTML with embedded SVG favicon.
+  - Export raw table data to CSV.
+- 🧭 **Host Bridge Interactivity**: Switch source notes, refresh data live, and jump directly to any note without closing the dashboard.
 
 ---
 
 ## Installation
 
-1. **Create a Plugin Note**: Create a new note in Amplenote and name it "Graph Utility Plugin" (or similar).
-2. **Setup Metadata Table**: At the very top of the note, create a table with the following rows:
-   
+1. **Create a Plugin Note**: Create a new note in Amplenote and name it "Graph Utility Plugin".
+2. **Setup Metadata Table**: At the very top of the note, insert the metadata table:
+
    | Field | Value |
    | :--- | :--- |
    | `name` | Graph Utility |
-   | `description` | Extracts markdown tables and visualizes them using Chart.js |
+   | `description` | Interactive multi-series table visualizer and chart workbench |
    | `icon` | insert_chart |
    | `setting` | Current_Note_UUID [Do not Edit!] |
+   | `setting` | Graph_Dashboard_State |
+   | `setting` | Last Embed View |
 
-3. **Insert Code Block**: Below the table, create a single Javascript code block (type ` ```javascript `).
-4. **Paste Compiled Code**: Copy the content from `build/graph-utility.compiled.js` and paste it inside that code block.
-5. **Activate**: Go to **Account Settings** -> **Plugins**, and select the note you just created.
+3. **Insert Code Block**: Below the table, insert a Javascript code block (` ```javascript `).
+4. **Paste Compiled Code**: Copy the content from `build/graph-utility.compiled.js` and paste it inside the code block.
+5. **Activate**: Go to **Account Settings** -> **Plugins**, and select the note.
 
 ---
 
 ## Usage
 
-Once installed, the plugin adds several options to the **Note Options** menu (accessed via the `...` icon in the top right of a note).
+### 1. `Open Graph Dashboard` (Note & App Option)
+Launches the interactive dashboard for the current note (or opens the workspace target selector).
 
-### 1. `Viewer!`
-Creates an Amplenote Embed block (`<object>`) at the cursor position. The embed visually represents the tables in the current note as an interactive web page.
-- Using the dropdowns in the visualizer, you can select which table to plot, and define the X, Y, and Z axes.
-- Support for `(Transposed)` datasets ensures rows/columns can be visualized efficiently without altering the markdown source.
-
-### 2. `Update!`
-Refreshes the current `renderEmbed` block. Use this when you have added new tables or modified existing data in the note and want the charts to reflect the updated values immediately.
-
-### 3. `Download!`
-Extracts all markdown tables in the active note, converts them into a cleanly formatted Comma-Separated Values (CSV) string, and creates a brand new note tagged with `#charts-download` containing the data.
+Inside the Dashboard:
+- **Left Panel**: Switch notes, refresh data, select heading-labeled tables, transpose rows/columns.
+- **Center Canvas**: Interactive Chart.js canvas with chart type switcher pills, theme cycling, and export menu.
+- **Right Panel**: Select X-axis label column, multi-select Y-axis series (with 1-click "Select All"), change color palettes, and toggle curve smoothing / fill area / grid lines.
 
 ---
 
-## Technical Details
+## Architecture & Development
 
-The plugin is built with modern ES Modules and bundled via `esbuild`. 
-- `lib/ui/htmlTemplate.js`: Contains the core layout, CSS styling, and injection of Chart.js dependencies over CDN. User data (`noteName`, `noteTags`, etc.) is strictly HTML-escaped.
-- `lib/utils/`: Dedicated, tested pure functions for Markdown parsing (`markdownParser.js`), array transposition (`tableTranspose.js`), and CSV conversions (`csvConverter.js`).
-- `build/graph-utility.compiled.js`: The final artifact that is safely bundled into a self-executing IIFE for Amplenote compatibility.
+- `Graph Utility.js`: Plugin entry point exposing `appOption`, `noteOption`, `renderEmbed`, and `onEmbedCall` bridge.
+- `lib/features/`: Modular handlers for launching (`launcher.js`), host bridge actions (`onEmbedCall.js`), and embed generation (`renderEmbed.js`).
+- `lib/ui/htmlTemplate.js`: Responsive 3-pane interactive dashboard with Chart.js, embedded SVG favicon, and debounced state persistence.
+- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), array transposition (`tableTranspose.js`), and CSV conversion (`csvConverter.js`).
+- `build/graph-utility.compiled.js`: Self-contained IIFE bundled with `esbuild`.

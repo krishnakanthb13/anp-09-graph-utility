@@ -1,4 +1,4 @@
-import { removeHtmlComments, removeEmptyRowsAndColumns, extractTablesFromMarkdown } from '../lib/utils/markdownParser.js';
+import { removeHtmlComments, removeEmptyRowsAndColumns, extractTablesFromMarkdown, extractStructuredTables } from '../lib/utils/markdownParser.js';
 
 describe('removeHtmlComments', () => {
   it('should remove HTML comments (Happy Path)', () => {
@@ -50,4 +50,27 @@ describe('extractTablesFromMarkdown', () => {
     const input = `Just text\nNo tables`;
     expect(extractTablesFromMarkdown(input)).toEqual('');
   });
+
+  it('should include heading in table labels when present (Feature)', () => {
+    const input = `# Revenue Section\n| Month | Total |\n| Jan | 100 |`;
+    const result = extractTablesFromMarkdown(input, 'My Notes');
+    expect(result).toContain('# My Notes > Revenue Section > Table 1');
+  });
 });
+
+describe('extractStructuredTables', () => {
+  it('should parse table headers, rows and headings accurately', () => {
+    const input = `# Sales 2026\n| Month | Target | Actual |\n|---|---|---|\n| Jan | 100 | 120 |\n| Feb | 110 | 115 |`;
+    const tables = extractStructuredTables(input, 'Financial Note');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].heading).toEqual('Sales 2026');
+    expect(tables[0].noteName).toEqual('Financial Note');
+    expect(tables[0].displayName).toContain('Financial Note > Sales 2026 > Table 1 (3 cols × 2 rows)');
+    expect(tables[0].headers).toEqual(['Month', 'Target', 'Actual']);
+    expect(tables[0].dataRows).toEqual([
+      ['Jan', '100', '120'],
+      ['Feb', '110', '115']
+    ]);
+  });
+});
+
