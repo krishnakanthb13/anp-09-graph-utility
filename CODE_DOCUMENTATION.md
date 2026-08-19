@@ -22,13 +22,27 @@ Handles bidirectional communication between the iframe embed and the Amplenote r
   - **Media Attachment**: Uploads the PNG chart to Amplenote CDN media (`note.attachMedia`), handles errors distinctly, and uses `app.replaceNoteContent` to inject `![]()` markdown directly above the target table.
 - `copyTablesToNewNote`: Creates a new note via `app.createNote` and populates it with all parsed markdown tables.
 - `saveState` & `getState`: Persists and restores dashboard UI state with **Per-Note State Isolation** (`version: 1, notes: { [noteUUID]: state }`).
+- `insertFormulaTableToNote`: Creates a dedicated new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, populates it with domain metadata and a clean Markdown coordinate table, and navigates to the new note.
+- `saveFormulaImageToNote`: Captures the canvas rendering of the mathematical function plot, creates a new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, uploads the PNG media asset via `note.attachMedia`, embeds the image, and navigates to the new note.
 
 ### 2. State & Payload Injection (`lib/features/renderEmbed.js`)
 When the embed is launched, the Host collects the current note's UUID (resolved via `app.findNote`), content, structured tables, and persisted settings.
 These are serialized into a JSON payload object injected into the HTML document inside a `<script type="application/json" id="plugin-payload">` tag with `\u003c` escaping, completely eliminating script breakout and template interpolation vulnerabilities.
 
-### 3. The Interactive Dashboard (`lib/ui/htmlTemplate.js`)
+### 3. Mathematical Formula Parsing & Evaluation Engine (`lib/utils/mathEvaluator.js`)
+A secure, custom AST-based mathematical evaluation engine completely isolated from `eval()` or `Function()` constructors:
+- **Lexical Tokenizer (`tokenizeMath`)**: Converts raw mathematical expressions (e.g. `2x + sin(3x)`) into structured tokens (`NUMBER`, `VARIABLE`, `CONSTANT`, `FUNCTION`, `OPERATOR`, `LPAREN`, `RPAREN`, `COMMA`).
+- **Implicit Multiplication Resolution**: Automatically detects adjacent operand/variable/parentheses pairs (such as `2x`, `3sin(x)`, `(x+1)(x-1)`, `4pi*x`) and injects binary multiplication tokens.
+- **Recursive-Descent AST Parser (`parseMathTokens`)**: Parses token streams according to operator precedence and associativity (`+`/`-` at precedence 1, `*`/`/`/`%` at precedence 2, unary negation and exponentiation `^` right-associative at precedence 3). Builds an Abstract Syntax Tree.
+- **Defensive AST Evaluator (`evaluateAst`)**: Recursively evaluates nodes for any real variable $x$. Safely traps division-by-zero, negative square roots, and infinite asymptotes by returning `null`/`NaN` without crashing the runtime.
+- **Multi-Curve Sampler & Markdown Table Generator (`lib/utils/formulaSampler.js`)**:
+  - `sampleMultiFormulas`: Samples active formulas across the user-configured domain $[x_{min}, x_{max}]$ with linear steps across $N$ points, producing smooth Chart.js dataset series.
+  - `generateFormulaMarkdownTable`: Creates standard Markdown coordinate tables with formatted headers and escaped pipe symbols for seamless Amplenote note insertion.
+
+### 4. The Interactive Dashboard (`lib/ui/htmlTemplate.js`)
 A responsive 3-pane data studio featuring:
+- **Dual Source Modes (`sourceMode: "tables" | "formulas"`)**: Seamless toggle between Markdown Table visualization and Mathematical Function Plotting.
+- **Formula Workbench Controls**: Dynamic card list for managing multiple functions $f(x)$, live validation error badges, curated curve presets, domain range bounds ($x_{min}, x_{max}$), sampling resolution slider ($2\text{--}2000$ points), and 1-click note actions.
 - **Script Loader & State Machine**: Sequentially loads `Chart.js`, `chartjs-plugin-datalabels`, `hammer.js`, and `chartjs-plugin-zoom` with state tracking (`window._chartScriptsState: "loading" | "ready" | "failed"`). Dispatches `chartsReady` on completion and `chartsError` on CDN failure, gracefully notifying users without infinite loops.
 - **Per-Note State Hydration & Persistence**: Decodes the injected payload and hydrates the local `state` scoped to `currentNoteUUID` in both `localStorage` and `app.setSetting`. Includes strict input sanitization (`Number.isInteger` bounds checks for `activeTableIndex >= 0`, `selectedXIndex >= -1`, and filtering `selectedYIndices` against negative or invalid indices). Snapshot cloning (`JSON.parse(JSON.stringify(state))`) prevents asynchronous mutation races.
 - **Responsive Narrow-Screen Studio & Mobile Backdrop**:
@@ -58,10 +72,12 @@ A responsive 3-pane data studio featuring:
 - **Curated Color Palettes (11 Palettes)**: Handcrafted multi-color schemes including `modern`, `oceanic`, `aurora`, `neon`, `emerald`, `sunset`, `autumn`, `vintage`, `candy`, `pastel`, and `monochrome`.
 - **Chart.js Rendering Engine (`renderChart`)**: Maps active data series to Chart.js datasets with dynamic color palettes, animation easing, `spanGaps: true`, and custom background canvas drawing (`customCanvasBackgroundColor`) for pristine image exports.
 
-### 4. Utilities (`lib/utils/`)
+### 5. Utilities (`lib/utils/`)
 - `markdownParser.js`: Heading-aware table extraction (`extractStructuredTables`, `extractTablesFromMarkdown`), fast-path string tokenization in `splitTableRow()` for rows without backslashes, in-place column normalization in `removeEmptyRowsAndColumns()`, and header sanitization (`cleanHeaderName`).
 - `tableTranspose.js`: Pure matrix transposition (`transposeArray`, `transposeStructuredTable`, `transposeMarkdownTables`) using a single-pass O(N) linear algorithm with pre-allocated result matrices (`new Array(maxCols)`), completely eliminating call-stack overflow risks on massive datasets.
 - `csvConverter.js`: Converts parsed table rows into RFC 4180 standard CSV strings with internal quote escaping (`""`).
+- `mathEvaluator.js`: Pure mathematical lexer, Pratt/recursive-descent parser, and AST evaluator.
+- `formulaSampler.js`: Multi-curve domain sampler and Markdown table exporter.
 
 ## Key Design Patterns
 

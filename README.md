@@ -25,6 +25,14 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 - 🎨 **10 Curated Designer Themes**: Seamlessly cycle between *Dark*, *Light*, *Midnight*, *Forest*, *Cyberpunk*, *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai*. Canvas backgrounds automatically synchronize for clean image and HTML exports.
 - 🌈 **11 Curated Color Palettes**: Choose from *Vibrant & Modern*, *Oceanic Blues & Teals*, *Cosmic Aurora Glow*, *Cyberpunk Neon*, *Emerald Nature*, *Sunset Gradient*, *Autumn Amber & Copper*, *Retro 80s Vintage*, *Candy Berry Pop*, *Soft Pastel*, and *Monochrome Slate*.
 - 📈 **Interactive Pro Plugins**: Native support for scroll-wheel Zoom, Pan, and auto-formatted Data Labels overlays built directly into the canvas.
+- 🧮 **Mathematical Function Plotter Engine**:
+  - Pure, sandboxed mathematical expression parser and evaluator ($y = f(x)$) without `eval()` or `Function()`.
+  - Supports arithmetic (`+`, `-`, `*`, `/`, `^`, `%`), constants (`pi`, `e`, `tau`, `phi`), and 25+ mathematical functions (`sin`, `cos`, `tan`, `log`, `ln`, `exp`, `sqrt`, `cbrt`, `pow`, `abs`, `sinh`, `cosh`, `atan2`, `min`, `max`).
+  - Supports implicit multiplication (`2x`, `3sin(x)`, `(x+1)(x-1)`, `4pi*x`).
+  - Multi-function simultaneous plotting with individual color coding and active toggles.
+  - Interactive preset curves (Sine Wave, Damped Oscillator, Sigmoid, Gaussian Bell, Sinc, Polynomial, Butterfly, Resonance).
+  - Configurable domain range $[x_{min}, x_{max}]$ with separate step arrows and sampling resolution ($2\text{--}2000$ points).
+  - 1-click **Save Formula Plot to Note** and **Insert Coordinate Table to Note**: automatically creates dedicated Amplenote notes named `Math Graph — <Expression>` tagged with `-reports/-math-graph` with rich Markdown metadata.
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
 - 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers, escaped pipes (`\|`), and preserved column structure without modifying source markdown.
 - 💾 **Export & Save Options**:
@@ -62,7 +70,9 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 Launches the interactive dashboard for the current note (or opens the workspace target selector).
 
 Inside the Dashboard:
-- **Left Panel**: Switch notes, refresh data, select heading-labeled tables, choose chart types, and toggle Rows ⇄ Cols transposition.
+- **Mode Switcher**: Switch seamlessly between **`Markdown Tables`** mode and **`Math Formula`** mode.
+- **Left Panel (Tables Mode)**: Switch notes, refresh data, select heading-labeled tables, choose chart types, and toggle Rows ⇄ Cols transposition.
+- **Left Panel (Formula Mode)**: Add/remove functions $f(x)$, choose curated presets, customize domain $[x_{min}, x_{max}]$, adjust sampling resolution ($2\text{--}2000$ points), save plot images to note, and generate/insert $(x, y)$ coordinate tables directly into your active Amplenote note.
 - **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), replay animation button, theme cycler, and full export menu.
 - **Right Panel**: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with the smart **`Select All` / `Select #1`** button, select curated color palettes, and fine-tune animation easing, curve smoothing, area fills, and grid lines.
 
@@ -72,6 +82,6 @@ Inside the Dashboard:
 
 - `Graph Utility.js`: Plugin entry point exposing `appOption`, `noteOption`, `renderEmbed`, and `onEmbedCall` bridge.
 - `lib/features/`: Modular handlers for launching (`launcher.js`), host bridge actions (`onEmbedCall.js`), and embed generation (`renderEmbed.js`).
-- `lib/ui/htmlTemplate.js`: Responsive 3-pane interactive dashboard with Chart.js, embedded SVG/PNG favicon, and debounced per-note state persistence.
-- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), structured & array transposition (`tableTranspose.js`), and CSV conversion (`csvConverter.js`).
+- `lib/ui/htmlTemplate.js`: Responsive 3-pane interactive dashboard with Chart.js, embedded SVG/PNG favicon, math plotting engine, and debounced per-note state persistence.
+- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), structured & array transposition (`tableTranspose.js`), CSV conversion (`csvConverter.js`), safe math parsing & evaluation (`mathEvaluator.js`), and domain sampling (`formulaSampler.js`).
 - `build/graph-utility.compiled.js`: Self-contained IIFE bundled with `esbuild`.

@@ -273,4 +273,62 @@ describe('handleEmbedCall', () => {
     expect(mockApp.insertNoteContent).toHaveBeenCalledWith({ uuid: 'new-note-uuid-999' }, expect.stringContaining('| Table 1 Col |'));
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-note-uuid-999');
   });
+
+  it('should handle insertFormulaTableToNote by creating a new note with tag -reports/-math-graph', async () => {
+    mockApp.createNote = jest.fn().mockResolvedValue('new-math-note-1');
+    mockApp.insertNoteContent = jest.fn().mockResolvedValue(true);
+    mockApp.navigate = jest.fn().mockResolvedValue(true);
+
+    const res = await handleEmbedCall(mockApp, 'insertFormulaTableToNote', {
+      markdownTable: '| x | sin(x) |\n|---|---|\n| 0 | 0 |',
+      heading: 'sin(x)',
+      formulas: [{ name: 'f1(x) = sin(x)', expression: 'sin(x)' }],
+      xMin: -10,
+      xMax: 10,
+      formulaPoints: 21
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.createNote).toHaveBeenCalledWith('Math Graph — sin(x)', ['-reports/-math-graph']);
+    expect(mockApp.insertNoteContent).toHaveBeenCalledWith(
+      { uuid: 'new-math-note-1' },
+      expect.stringContaining('# Math Graph — sin(x)')
+    );
+    expect(mockApp.insertNoteContent).toHaveBeenCalledWith(
+      { uuid: 'new-math-note-1' },
+      expect.stringContaining('| x | sin(x) |')
+    );
+    expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-math-note-1');
+  });
+
+  it('should handle saveFormulaImageToNote by creating a new note, attaching media, and inserting markdown', async () => {
+    mockApp.createNote = jest.fn().mockResolvedValue('new-math-note-2');
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/formula_plot.png')
+    });
+    mockApp.insertNoteContent = jest.fn().mockResolvedValue(true);
+    mockApp.navigate = jest.fn().mockResolvedValue(true);
+
+    const res = await handleEmbedCall(mockApp, 'saveFormulaImageToNote', {
+      dataUrl: 'data:image/png;base64,mockformula',
+      formulaTitle: 'sin(x)',
+      formulas: [{ name: 'f1(x) = sin(x)', expression: 'sin(x)' }],
+      xMin: -10,
+      xMax: 10,
+      formulaPoints: 200
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.createNote).toHaveBeenCalledWith('Math Graph — sin(x)', ['-reports/-math-graph']);
+    expect(mockApp.insertNoteContent).toHaveBeenCalledWith(
+      { uuid: 'new-math-note-2' },
+      expect.stringContaining('https://images.amplenote.com/formula_plot.png')
+    );
+    expect(mockApp.insertNoteContent).toHaveBeenCalledWith(
+      { uuid: 'new-math-note-2' },
+      expect.stringContaining('# Math Graph — sin(x)')
+    );
+    expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-math-note-2');
+  });
 });
+

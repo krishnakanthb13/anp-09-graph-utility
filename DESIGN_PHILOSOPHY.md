@@ -52,5 +52,11 @@ When interacting with active notes, data integrity is paramount:
 - **Explicit Invariant**: Unchanged notes use structural positional matching; modified notes require an unambiguous unique content match. If duplicate identical tables exist after a concurrent shift, the operation safely aborts with transparent user feedback rather than writing above the wrong table.
 - **Input Sanitization**: Persisted states, table indices, and axis selections are bounded and validated against real table dimensions to prevent state corruption.
 
+### 8. Mathematical Formula Modeling & Sandboxed Exploration
+Visualizing data is not limited to pre-existing tables. Mathematical equations ($y = f(x)$), engineering models, scientific curves, and financial formulas are fundamental ways to understand relationships:
+- **Zero-Dependency Safe Parsing**: Mathematical expressions are parsed through an isolated custom AST tokenizer and recursive-descent evaluator — strictly prohibiting unsafe `eval()` or dynamic `Function()` code execution.
+- **Continuous Function Sampling & Multi-Curve Plotting**: Enables simultaneous comparison of multiple mathematical curves ($f_1(x), f_2(x)$), configurable domain intervals $[x_{min}, x_{max}]$, and high-density sampling ($2\text{--}2000$ points) with custom step arrows for tactile exploration.
+- **Dedicated Report Publishing**: Generating plots or coordinate tables automatically creates organized notes tagged with `"-reports/-math-graph"`, keeping work spaces tidy, structured, and archived.
+
 ## Evolving Goals
-As the plugin evolves, the focus remains strictly on **Visualization and Analysis**, not note editing. We aim to be the most expressive, reliable way to *see* and *understand* the structured data you write, preserving Amplenote's strength as an agile writing environment.
+As the plugin evolves, the focus remains strictly on **Visualization, Mathematical Exploration, and Analysis**, not note editing. We aim to be the most expressive, reliable way to *see* and *understand* both structured table data and continuous mathematical models you write, preserving Amplenote's strength as an agile writing environment.

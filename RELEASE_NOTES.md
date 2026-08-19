@@ -1,3 +1,15 @@
+## v0.0.17 (2026-08-19)
+### 🧮 Mathematical Formula Plotter ($y = f(x)$)
+- **Sandboxed Formula Evaluator**: Pure AST-based mathematical tokenizer, Pratt/recursive-descent parser, and evaluator without `eval()` or dynamic `Function()` execution.
+- **Rich Operator, Constant & Function Support**: Supports basic arithmetic (`+`, `-`, `*`, `/`, `^`, `%`), constants (`pi`, `e`, `tau`, `phi`), and 25+ mathematical functions (`sin`, `cos`, `tan`, `log`, `ln`, `exp`, `sqrt`, `cbrt`, `pow`, `abs`, `sinh`, `cosh`, `atan2`, `min`, `max`).
+- **Implicit Multiplication Resolution**: Transparently recognizes expressions like `2x`, `3sin(x)`, `(x+1)(x-1)`, `4pi*x`.
+- **Multi-Curve Simultaneous Plotting**: Add, toggle, and color-code multiple simultaneous mathematical functions with real-time error badge validation.
+- **Curated Curve Presets**: 1-click loading of *Sine Wave*, *Damped Oscillator*, *Sigmoid*, *Gaussian Bell*, *Sinc*, *Polynomial*, *Harmonics*, *Square Root*, and *Resonance*.
+- **Domain Stepper Ergonomics**: Upgraded domain bounds $[x_{min}, x_{max}]$ with large, separate **Up (`▲`)** and **Down (`▼`)** stepper buttons and sampling resolution slider ($2\text{--}2000$ points).
+- **Dedicated Report Publishing**:
+  - **Save Plot to Note**: Captures high-res canvas rendering and creates a dedicated Amplenote note titled `Math Graph — <Expression>` tagged with `-reports/-math-graph` with full domain metadata and formula list.
+  - **Insert Table to Note**: Generates clean $(x, y)$ coordinate Markdown tables and creates a dedicated Amplenote note tagged with `-reports/-math-graph`.
+
 ## v0.0.16 (2026-08-18)
 ### 📱 Responsive Narrow-Screen Workbench & Mobile Backdrop
 - **Automatic Panel Collapse on Narrow Screens**: The workbench automatically evaluates viewport dimensions on open (`<= 900px`), starting with both left and right panels collapsed so the chart canvas remains unobstructed.
