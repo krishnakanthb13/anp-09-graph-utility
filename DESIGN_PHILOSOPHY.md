@@ -29,16 +29,19 @@ Charts should deliver genuine analytical value, not mere visual approximations:
 - **Waterfall Modeling**: Computes positive and negative step transitions as floating blocks.
 - **Histograms**: Calculates continuous frequency bins rather than simple category bars.
 
-### 4. Escape Hatches
-Data trapped inside a single proprietary view is limited. We believe users should always have complete ownership over their visualizations and tables:
+### 4. Escape Hatches & Mode-Aware Exporting
+Data trapped inside a single proprietary view is limited. We believe users should always have complete ownership over their visualizations and models:
+- **Context-Aware Dynamic Exporting**: Export actions automatically adapt to the user's active mental mode. In Tables mode, you get table downloads and in-note image snapshots; in Math Formula mode, you get coordinate tables, standalone equation studios, and dedicated `-reports/-math-graph` note publishing.
 - **Interactive HTML**: Exports a self-contained, fully offline HTML application with embedded data and Chart.js runtime.
-- **Structured CSV & MD**: Instantly exports all tables for spreadsheet analysis or markdown backup.
+- **Structured CSV & MD**: Instantly exports tabular datasets or sampled coordinate tables for spreadsheet analysis or markdown backup.
 - **Direct Note Insertion**: Burns high-resolution PNG chart snapshots above the relevant markdown table inside Amplenote notes (with stale-content overwrite protection) for long-term review.
 
 ### 5. Responsive Ergonomics & Multi-Device Focus
 A studio tool must adapt gracefully across device form factors:
 - **Canvas as the Hero**: On narrow resolutions ($\le 900\text{px}$, tablets, and sidebar peek modes), sidebars shouldn't monopolize the view. The workbench defaults to collapsed sidebars, allowing the chart to take center stage.
 - **Fluid Touch & Mobile Dismissal**: Floating sidebars, single-tap backdrop dismissal, and mutual panel exclusivity ensure mobile interactions feel native and effortless.
+- **Contextual Canvas Controls**: Controls that aren't relevant in standard viewports (such as `Reset Zoom`) stay hidden until needed, reducing cognitive clutter and providing immediate recovery with 1 click.
+- **Theme-Aware Scroll Polish**: Scrollbars seamlessly integrate into the visual language across all 10 dark, light, and designer palettes without harsh OS-default styling bleed.
 
 ### 6. Performance as an Invariant & Zero-Leak Memory
 Data analytics tools often suffer from sluggishness as tables expand. We treat efficiency as a first-class design pillar:
@@ -55,7 +58,7 @@ When interacting with active notes, data integrity is paramount:
 ### 8. Mathematical Formula Modeling & Sandboxed Exploration
 Visualizing data is not limited to pre-existing tables. Mathematical equations ($y = f(x)$), engineering models, scientific curves, and financial formulas are fundamental ways to understand relationships:
 - **Zero-Dependency Safe Parsing**: Mathematical expressions are parsed through an isolated custom AST tokenizer and recursive-descent evaluator — strictly prohibiting unsafe `eval()` or dynamic `Function()` code execution.
-- **Continuous Function Sampling & Multi-Curve Plotting**: Enables simultaneous comparison of multiple mathematical curves ($f_1(x), f_2(x)$), configurable domain intervals $[x_{min}, x_{max}]$, and high-density sampling ($2\text{--}2000$ points) with custom step arrows for tactile exploration.
+- **Continuous Function Sampling & Multi-Curve Plotting**: Enables simultaneous comparison of multiple mathematical curves ($f_1(x), f_2(x)$), configurable domain intervals $[x_{min}, x_{max}]$, and high-density sampling ($20\text{--}600$ points) with tactile step buttons for exploration.
 - **Dedicated Report Publishing**: Generating plots or coordinate tables automatically creates organized notes tagged with `"-reports/-math-graph"`, keeping work spaces tidy, structured, and archived.
 
 ## Evolving Goals

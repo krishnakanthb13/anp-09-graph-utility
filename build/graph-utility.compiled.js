@@ -1144,6 +1144,38 @@ function buildChartHtml({
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-hover) transparent;
+    }
+
+    /* Universal Themed Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: var(--border-color);
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background-clip: padding-box;
+      transition: background-color 0.2s ease;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: var(--border-hover);
+    }
+
+    ::-webkit-scrollbar-thumb:active {
+      background-color: var(--accent-primary);
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: transparent;
     }
 
     html, body {
@@ -1953,6 +1985,22 @@ function buildChartHtml({
 
         <!-- 1. TABLES MODE CONTROLS -->
         <div id="tablesModeSection">
+          <!-- Studio Banner -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 14px;">\u{1F4CA}</span>
+                  <span style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Table Visualizer Studio</span>
+                </div>
+                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: rgba(99, 102, 241, 0.15); color: var(--accent-primary, #6366f1);">Live Note</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.45;">
+                Select a table from your note below. Use the right panel to map X/Y series axes, color themes, and chart options.
+              </div>
+            </div>
+          </div>
+
           <!-- Table Selector -->
           <div class="form-group">
             <label class="form-label" for="tableSelector">Select Table</label>
@@ -2001,39 +2049,26 @@ function buildChartHtml({
           </div>
         </div>
 
-        <!-- 2. MATH FORMULA MODE CONTROLS -->
-        <div id="formulaModeSection" style="display: none;">
-          <!-- Presets Dropdown -->
-          <div class="form-group">
-            <label class="form-label" for="formulaPresetSelect">Preset Curves</label>
-            <select id="formulaPresetSelect" class="select">
-              <option value="">-- Choose a Preset --</option>
-              <option value="sin(x)">\u{1F30A} Sine Wave: sin(x)</option>
-              <option value="exp(-0.2*x)*sin(2*x)">\u{1F4C9} Damped Sine: exp(-0.2*x)*sin(2*x)</option>
-              <option value="x^2 - 4">\u{1F4C8} Quadratic: x^2 - 4</option>
-              <option value="0.1*x^3 - x">\u3030\uFE0F Cubic: 0.1*x^3 - x</option>
-              <option value="exp(-x^2 / 2)">\u{1F514} Gaussian (Bell): exp(-x^2 / 2)</option>
-              <option value="1 / (1 + exp(-x))">\u26A1 Sigmoid: 1 / (1 + exp(-x))</option>
-              <option value="sin(x) + 0.5*sin(3*x)">\u{1F3B5} Harmonics: sin(x) + 0.5*sin(3*x)</option>
-              <option value="abs(x) - 2">\u{1F4D0} Absolute: abs(x) - 2</option>
-              <option value="sin(x) / x">\u{1F4AB} Sinc: sin(x) / x</option>
-              <option value="sqrt(abs(x))">\u{1F331} Square Root: sqrt(abs(x))</option>
-            </select>
-          </div>
-
-          <!-- Formula List -->
-          <div class="form-group" style="margin-top: 12px;">
-            <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-              <span>Functions y = f(x)</span>
-              <button id="addFormulaBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;" title="Add another function curve">
-                + Add Function
-              </button>
+        <!-- 2. MATH FORMULA MODE ACTIONS & CONTROLS -->
+        <div id="formulaLeftOverviewSection" style="display: none;">
+          <!-- Studio Banner -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 14px;">\u{1F4D0}</span>
+                  <span style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Math Formula Studio</span>
+                </div>
+                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: rgba(6, 182, 212, 0.15); color: #06b6d4;">y = f(x)</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.45;">
+                Compose equations on the right panel, configure domain bounds & sampling resolution below, then generate or save your graph.
+              </div>
             </div>
-            <div id="formulaListContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;"></div>
           </div>
 
           <!-- Domain Range & Sampling Resolution -->
-          <div class="form-group" style="margin-top: 12px;">
+          <div class="form-group">
             <span class="form-label">Domain Bounds [xMin, xMax]</span>
             <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 2px;">
               <!-- xMin Stepper Row -->
@@ -2072,18 +2107,12 @@ function buildChartHtml({
               <span>Generate Chart</span>
             </button>
           </div>
+        </div>
 
-          <!-- Formula Action Buttons -->
-          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 12px;">
-            <button id="saveFormulaPlotBtn" class="btn" title="Insert high-res plot image into Amplenote note">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              Save Plot to Note
-            </button>
-            <button id="insertFormulaTableBtn" class="btn" title="Generate (x, y) coordinates as Markdown Table into note">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              Insert Table to Note
-            </button>
-          </div>
+        <!-- Zoom & Pan Navigation Tip -->
+        <div class="panel-tip" style="margin-top: 16px; padding: 8px 10px; background: var(--bg-surface-elevated); border: 1px dashed var(--border-color); border-radius: var(--radius-sm); font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; flex-shrink: 0;">\u{1F4A1}</span>
+          <span><strong>Tip:</strong> Use mouse wheel to zoom. Drag to pan.</span>
         </div>
       </div>
     </aside>
@@ -2122,56 +2151,106 @@ function buildChartHtml({
             </button>
             <div id="exportMenu" class="export-menu">
               <div class="export-dropdown-header">
-                Select the format that you want to download / copy in!
+                Select export or publishing format
               </div>
 
-              <!-- Main Formats -->
-              <button id="downloadInteractiveHtmlBtn" class="export-menu-item featured">
-                <span class="export-item-icon">\u2728</span>
-                <div class="export-item-text">
-                  <div class="export-item-title">
-                    Download - Interactive Charts
-                    <span class="badge-rec">Recommended</span>
+              <!-- 1. TABLES MODE EXPORT OPTIONS -->
+              <div id="exportTablesGroup" style="display: flex; flex-direction: column; gap: 6px;">
+                <button id="downloadInteractiveHtmlBtn" class="export-menu-item featured">
+                  <span class="export-item-icon">\u2728</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">
+                      Download - Interactive Charts
+                      <span class="badge-rec">Recommended</span>
+                    </div>
+                    <div class="export-item-desc">Self-contained offline studio with Chart.js & data</div>
                   </div>
-                  <div class="export-item-desc">Self-contained offline studio with Chart.js & data</div>
-                </div>
-              </button>
+                </button>
 
-              <button id="downloadAllTablesMDBtn" class="export-menu-item">
-                <span class="export-item-icon">\u{1F4DD}</span>
-                <div class="export-item-text">
-                  <div class="export-item-title">Download all Tables - MD</div>
-                  <div class="export-item-desc">Clean markdown tables document (.md)</div>
-                </div>
-              </button>
+                <button id="downloadAllTablesMDBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4DD}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Download all Tables - MD</div>
+                    <div class="export-item-desc">Clean markdown tables document (.md)</div>
+                  </div>
+                </button>
 
-              <button id="downloadAllTablesCSVBtn" class="export-menu-item">
-                <span class="export-item-icon">\u{1F4CA}</span>
-                <div class="export-item-text">
-                  <div class="export-item-title">Download all Tables - CSV</div>
-                  <div class="export-item-desc">Structured comma-separated data table (.csv)</div>
-                </div>
-              </button>
+                <button id="downloadAllTablesCSVBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CA}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Download all Tables - CSV</div>
+                    <div class="export-item-desc">Structured comma-separated data table (.csv)</div>
+                  </div>
+                </button>
 
-              <button id="copyAllTablesToNewNoteBtn" class="export-menu-item">
-                <span class="export-item-icon">\u{1F4CB}</span>
-                <div class="export-item-text">
-                  <div class="export-item-title">Copy all Tables to a new Note</div>
-                  <div class="export-item-desc">Creates a new note with all tables in Amplenote</div>
-                </div>
-              </button>
+                <button id="copyAllTablesToNewNoteBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CB}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Copy all Tables to a new Note</div>
+                    <div class="export-item-desc">Creates a new note with all tables in Amplenote</div>
+                  </div>
+                </button>
 
-              <div class="export-dropdown-divider"></div>
+                <div class="export-dropdown-divider"></div>
 
-              <!-- Image & Note Actions -->
-              <button id="saveImageToNoteBtn" class="export-menu-item">
-                <span class="export-item-icon">\u{1F4CC}</span>
-                <div class="export-item-text">
-                  <div class="export-item-title">Save Image Above Table in Note</div>
-                  <div class="export-item-desc">Embeds high-res snapshot into source note</div>
-                </div>
-              </button>
+                <button id="saveImageToNoteBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CC}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Save Image Above Table in Note</div>
+                    <div class="export-item-desc">Embeds high-res snapshot into source note</div>
+                  </div>
+                </button>
+              </div>
 
+              <!-- 2. MATH FORMULA MODE EXPORT OPTIONS -->
+              <div id="exportFormulasGroup" style="display: none; flex-direction: column; gap: 6px;">
+                <button id="downloadFormulaHtmlBtn" class="export-menu-item featured">
+                  <span class="export-item-icon">\u2728</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">
+                      Download - Interactive Studio
+                      <span class="badge-rec">Recommended</span>
+                    </div>
+                    <div class="export-item-desc">Self-contained offline math graphing dashboard</div>
+                  </div>
+                </button>
+
+                <button id="downloadFormulaTableMDBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4DD}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Download Coordinates - MD</div>
+                    <div class="export-item-desc">Clean markdown coordinates table (.md)</div>
+                  </div>
+                </button>
+
+                <button id="downloadFormulaCSVBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CA}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Download Coordinates - CSV</div>
+                    <div class="export-item-desc">Sampled (x, y) coordinates table (.csv)</div>
+                  </div>
+                </button>
+
+                <button id="insertFormulaTableBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CB}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Insert Table to Note</div>
+                    <div class="export-item-desc">Creates new note tagged -reports/-math-graph</div>
+                  </div>
+                </button>
+
+                <div class="export-dropdown-divider"></div>
+
+                <button id="saveFormulaPlotBtn" class="export-menu-item">
+                  <span class="export-item-icon">\u{1F4CC}</span>
+                  <div class="export-item-text">
+                    <div class="export-item-title">Save Plot to Note</div>
+                    <div class="export-item-desc">Embeds high-res curve snapshot to new note</div>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Common Actions -->
               <button id="copyImageClipboardBtn" class="export-menu-item">
                 <span class="export-item-icon">\u{1F4CE}</span>
                 <div class="export-item-text">
@@ -2198,6 +2277,10 @@ function buildChartHtml({
       <div class="chart-container">
         <div class="canvas-wrapper">
           <div class="canvas-toolbar">
+            <button id="resetZoomBtn" class="canvas-toolbar-btn" title="Reset Zoom / Pan" style="display: none; color: var(--accent-primary, #6366f1);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              Reset Zoom
+            </button>
             <button id="replayAnimationBtn" class="canvas-toolbar-btn" title="Replay Animation">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               Replay
@@ -2209,13 +2292,15 @@ function buildChartHtml({
     </main>
 
     <!-- \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-         RIGHT SIDEBAR: Axes Mapping, Easing, Palette & Visual Options
+         RIGHT SIDEBAR: Axes Mapping, Formulas, Palette & Visual Options
          \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 -->
     <aside id="rightPanel" class="panel panel-right">
       <div class="panel-header">
-        <div class="panel-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Series & Mapping
+        <div class="panel-title" id="rightPanelTitle">
+          <span id="rightPanelTitleIcon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </span>
+          <span id="rightPanelTitleText">Series & Mapping</span>
         </div>
         <button id="closeRightPanelBtn" class="btn btn-icon" title="Collapse Panel">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
@@ -2223,26 +2308,61 @@ function buildChartHtml({
       </div>
 
       <div class="panel-content">
-        <!-- X-Axis (Labels) -->
-        <div class="form-group">
-          <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-            <label for="xAxisSelect">X-Axis (Labels)</label>
-            <button id="clearXAxisBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;" title="Remove column from X (use Auto Row Index)">
-              Remove from X
-            </button>
+        <!-- 1. TABLES RIGHT SECTION -->
+        <div id="tablesRightSection">
+          <!-- X-Axis (Labels) -->
+          <div class="form-group">
+            <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="xAxisSelect">X-Axis (Labels)</label>
+              <button id="clearXAxisBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;" title="Remove column from X (use Auto Row Index)">
+                Remove from X
+              </button>
+            </div>
+            <select id="xAxisSelect" class="select"></select>
           </div>
-          <select id="xAxisSelect" class="select"></select>
+
+          <!-- Y-Axes Multi-Series Selection -->
+          <div class="form-group" style="margin-top: 12px;">
+            <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Y-Axis Series</span>
+              <button id="selectAllSeriesBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;">
+                Select All
+              </button>
+            </div>
+            <div id="ySeriesContainer" class="series-list"></div>
+          </div>
         </div>
 
-        <!-- Y-Axes Multi-Series Selection -->
-        <div class="form-group">
-          <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>Y-Axis Series</span>
-            <button id="selectAllSeriesBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;">
-              Select All
-            </button>
+        <!-- 2. FORMULAS RIGHT SECTION -->
+        <div id="formulaRightSection" style="display: none;">
+          <!-- Presets Dropdown -->
+          <div class="form-group">
+            <label class="form-label" for="formulaPresetSelect">Preset Curves</label>
+            <select id="formulaPresetSelect" class="select">
+              <option value="">-- Choose a Preset --</option>
+              <option value="sin(x)">\u{1F30A} Sine Wave: sin(x)</option>
+              <option value="exp(-0.2*x)*sin(2*x)">\u{1F4C9} Damped Sine: exp(-0.2*x)*sin(2*x)</option>
+              <option value="x^2 - 4">\u{1F4C8} Quadratic: x^2 - 4</option>
+              <option value="0.1*x^3 - x">\u3030\uFE0F Cubic: 0.1*x^3 - x</option>
+              <option value="exp(-x^2 / 2)">\u{1F514} Gaussian (Bell): exp(-x^2 / 2)</option>
+              <option value="1 / (1 + exp(-x))">\u26A1 Sigmoid: 1 / (1 + exp(-x))</option>
+              <option value="sin(x) + 0.5*sin(3*x)">\u{1F3B5} Harmonics: sin(x) + 0.5*sin(3*x)</option>
+              <option value="abs(x) - 2">\u{1F4D0} Absolute: abs(x) - 2</option>
+              <option value="sin(x) / x">\u{1F4AB} Sinc: sin(x) / x</option>
+              <option value="sqrt(abs(x))">\u{1F331} Square Root: sqrt(abs(x))</option>
+            </select>
           </div>
-          <div id="ySeriesContainer" class="series-list"></div>
+
+          <!-- Formula List -->
+          <div class="form-group" style="margin-top: 12px;">
+            <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Functions y = f(x)</span>
+              <button id="addFormulaBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;" title="Add another function curve">
+                + Add Function
+              </button>
+            </div>
+            <div id="formulaListContainer" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;"></div>
+          </div>
         </div>
 
         <!-- Color Palette Preset -->
@@ -2326,10 +2446,6 @@ function buildChartHtml({
               <span class="slider"></span>
             </div>
           </label>
-        </div>
-        
-        <div class="form-group" style="margin-top: 20px; font-size: 11px; color: var(--text-muted); text-align: center; font-style: italic;">
-          \u{1F4A1} Tip: Use mouse wheel to zoom. Drag to pan.
         </div>
       </div>
     </aside>
@@ -3325,6 +3441,16 @@ function buildChartHtml({
         if (ptsVal) ptsVal.textContent = state.formulaPoints + ' pts';
       }
 
+      function checkZoomState(chart) {
+        const resetBtn = document.getElementById('resetZoomBtn');
+        if (!resetBtn) return;
+        if (chart && typeof chart.isZoomedOrPanned === 'function') {
+          resetBtn.style.display = chart.isZoomedOrPanned() ? 'inline-flex' : 'none';
+        } else {
+          resetBtn.style.display = 'inline-flex';
+        }
+      }
+
       let chartRetries = 0;
       // Render Chart.js with full chart types & easing
       function renderChart() {
@@ -3346,6 +3472,9 @@ function buildChartHtml({
         chartRetries = 0;
         
         registerPlugins();
+
+        const resetBtn = document.getElementById('resetZoomBtn');
+        if (resetBtn) resetBtn.style.display = 'none';
 
         const canvas = document.getElementById('mainChart');
         if (!canvas) return;
@@ -3468,10 +3597,16 @@ function buildChartHtml({
                     wheel: { enabled: true, speed: 0.1 },
                     pinch: { enabled: true },
                     mode: 'xy',
+                    onZoomComplete: function(ctx) {
+                      checkZoomState(ctx.chart);
+                    }
                   },
                   pan: {
                     enabled: true,
                     mode: 'xy',
+                    onPanComplete: function(ctx) {
+                      checkZoomState(ctx.chart);
+                    }
                   }
                 },
                 tooltip: {
@@ -3518,8 +3653,19 @@ function buildChartHtml({
             chartInstance.destroy();
             chartInstance = null;
           }
+          const cR = document.getElementById('chipRows');
+          if (cR) cR.innerHTML = '<strong>0</strong> Rows';
+          const cC = document.getElementById('chipCols');
+          if (cC) cC.innerHTML = '<strong>0</strong> Cols';
+          const cS = document.getElementById('chipSeries');
+          if (cS) cS.innerHTML = '<strong>0</strong> Series';
           return;
         }
+
+        const cRows = document.getElementById('chipRows');
+        if (cRows) cRows.innerHTML = '<strong>' + currentTable.rowCount + '</strong> Rows';
+        const cCols = document.getElementById('chipCols');
+        if (cCols) cCols.innerHTML = '<strong>' + currentTable.columnCount + '</strong> Cols';
 
         let labels = state.selectedXIndex === -1
           ? currentTable.dataRows.map((_, rIdx) => 'Row ' + (rIdx + 1))
@@ -3823,10 +3969,16 @@ function buildChartHtml({
                   wheel: { enabled: true, speed: 0.1 },
                   pinch: { enabled: true },
                   mode: 'xy',
+                  onZoomComplete: function(ctx) {
+                    checkZoomState(ctx.chart);
+                  }
                 },
                 pan: {
                   enabled: true,
                   mode: 'xy',
+                  onPanComplete: function(ctx) {
+                    checkZoomState(ctx.chart);
+                  }
                 }
               },
               tooltip: {
@@ -4157,6 +4309,16 @@ function buildChartHtml({
           });
         }
 
+        // Reset Zoom Button
+        document.getElementById('resetZoomBtn')?.addEventListener('click', () => {
+          if (chartInstance && typeof chartInstance.resetZoom === 'function') {
+            chartInstance.resetZoom();
+          }
+          const resetBtn = document.getElementById('resetZoomBtn');
+          if (resetBtn) resetBtn.style.display = 'none';
+          showToast('Zoom reset');
+        });
+
         // Replay Animation Button
         document.getElementById('replayAnimationBtn')?.addEventListener('click', () => {
           if (chartInstance) {
@@ -4395,19 +4557,124 @@ function buildChartHtml({
           }
         });
 
-        // Mode Switcher Buttons
+        // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+        // MATH FORMULA MODE EXPORTS
+        // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+        // Formula Download - Interactive Studio HTML
+        document.getElementById('downloadFormulaHtmlBtn')?.addEventListener('click', () => {
+          let htmlContent = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+          const updatedPayload = {
+            noteUUID: currentNoteUUID,
+            noteName: currentNoteName,
+            noteTags: PAYLOAD.noteTags || [],
+            cleanedContent: cleanedMarkdown,
+            transposeContent: transposedMarkdown,
+            structuredTables: initialTables,
+            savedState: state
+          };
+          const updatedJson = JSON.stringify(updatedPayload).replace(/</g, '\\u003c');
+          const payloadRegex = new RegExp('(<script type="application/json" id="plugin-payload">)[\\s\\S]*?(<\\/script>)');
+          htmlContent = htmlContent.replace(
+            payloadRegex,
+            '$1' + String.fromCharCode(10) + '    ' + updatedJson + String.fromCharCode(10) + '  $2'
+          );
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          const link = document.createElement('a');
+          link.download = (currentNoteName || 'Math_Studio').replace(/[^a-z0-9]/gi, '_') + '_Math_Studio.html';
+          const url = URL.createObjectURL(blob);
+          link.href = url;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('Math Studio HTML downloaded');
+        });
+
+        // Formula Download - Markdown Coordinates Table
+        document.getElementById('downloadFormulaTableMDBtn')?.addEventListener('click', () => {
+          const activeFormulas = (state.formulas || []).filter(f => f.active !== false && (f.expression || '').trim().length > 0);
+          if (activeFormulas.length === 0) {
+            showToast('No active formulas to export.');
+            return;
+          }
+          const tableMd = generateFormulaMarkdownTable(state.formulas, {
+            xMin: state.xMin,
+            xMax: state.xMax,
+            points: 21
+          });
+          const blob = new Blob([tableMd], { type: 'text/markdown;charset=utf-8' });
+          const link = document.createElement('a');
+          link.download = (currentNoteName || 'Math_Graph').replace(/[^a-z0-9]/gi, '_') + '_Coordinates.md';
+          const url = URL.createObjectURL(blob);
+          link.href = url;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('Coordinates Table downloaded (.md)');
+        });
+
+        // Formula Download - CSV Coordinates Table
+        document.getElementById('downloadFormulaCSVBtn')?.addEventListener('click', () => {
+          const activeFormulas = (state.formulas || []).filter(f => f.active !== false && (f.expression || '').trim().length > 0);
+          if (activeFormulas.length === 0) {
+            showToast('No active formulas to export.');
+            return;
+          }
+          const sampleResult = sampleFormulaCurves(activeFormulas, {
+            xMin: state.xMin,
+            xMax: state.xMax,
+            points: state.formulaPoints || 200
+          });
+          const header = ['x', ...sampleResult.series.map(s => s.name || s.expression)].map(h => '"' + h.replace(/"/g, '""') + '"').join(',');
+          const rows = sampleResult.xValues.map((xVal, idx) => {
+            const rowCells = [xVal];
+            sampleResult.series.forEach(s => {
+              const yVal = s.data[idx];
+              rowCells.push(yVal !== null && !isNaN(yVal) ? yVal : '');
+            });
+            return rowCells.join(',');
+          });
+          const csvContent = [header, ...rows].join(String.fromCharCode(10));
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+          const link = document.createElement('a');
+          link.download = (currentNoteName || 'Math_Graph').replace(/[^a-z0-9]/gi, '_') + '_Coordinates.csv';
+          const url = URL.createObjectURL(blob);
+          link.href = url;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          showToast('Coordinates CSV downloaded (.csv)');
+        });
+
+        // Mode Switcher Buttons & Containers
         const modeTablesBtn = document.getElementById('modeTablesBtn');
         const modeFormulaBtn = document.getElementById('modeFormulaBtn');
-        const tablesSection = document.getElementById('tablesModeSection');
-        const formulaSection = document.getElementById('formulaModeSection');
+        const tablesLeftSection = document.getElementById('tablesModeSection');
+        const formulaLeftSection = document.getElementById('formulaLeftOverviewSection');
+        const tablesRightSection = document.getElementById('tablesRightSection');
+        const formulaRightSection = document.getElementById('formulaRightSection');
+        const exportTablesGroup = document.getElementById('exportTablesGroup');
+        const exportFormulasGroup = document.getElementById('exportFormulasGroup');
+        const rightPanelTitleText = document.getElementById('rightPanelTitleText');
+        const rightPanelTitleIcon = document.getElementById('rightPanelTitleIcon');
 
         window.switchWorkbenchMode = (mode) => {
           state.sourceMode = mode;
           if (mode === 'formulas') {
             modeFormulaBtn?.classList.add('active');
             modeTablesBtn?.classList.remove('active');
-            if (tablesSection) tablesSection.style.display = 'none';
-            if (formulaSection) formulaSection.style.display = 'block';
+            if (tablesLeftSection) tablesLeftSection.style.display = 'none';
+            if (formulaLeftSection) formulaLeftSection.style.display = 'block';
+            if (tablesRightSection) tablesRightSection.style.display = 'none';
+            if (formulaRightSection) formulaRightSection.style.display = 'block';
+            if (exportTablesGroup) exportTablesGroup.style.display = 'none';
+            if (exportFormulasGroup) exportFormulasGroup.style.display = 'flex';
+            if (rightPanelTitleText) rightPanelTitleText.textContent = 'Functions & Curves';
+            if (rightPanelTitleIcon) {
+              rightPanelTitleIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l4 16h6"/><path d="M4 12h10"/></svg>';
+            }
+            // Auto-expand Right Panel so formula controls are immediately visible
+            const rightPanel = document.getElementById('rightPanel');
+            if (rightPanel && rightPanel.classList.contains('collapsed')) {
+              rightPanel.classList.remove('collapsed');
+            }
             if (chartInstance) {
               chartInstance.destroy();
               chartInstance = null;
@@ -4417,13 +4684,21 @@ function buildChartHtml({
           } else {
             modeTablesBtn?.classList.add('active');
             modeFormulaBtn?.classList.remove('active');
-            if (tablesSection) tablesSection.style.display = 'block';
-            if (formulaSection) formulaSection.style.display = 'none';
+            if (tablesLeftSection) tablesLeftSection.style.display = 'block';
+            if (formulaLeftSection) formulaLeftSection.style.display = 'none';
+            if (tablesRightSection) tablesRightSection.style.display = 'block';
+            if (formulaRightSection) formulaRightSection.style.display = 'none';
+            if (exportTablesGroup) exportTablesGroup.style.display = 'flex';
+            if (exportFormulasGroup) exportFormulasGroup.style.display = 'none';
+            if (rightPanelTitleText) rightPanelTitleText.textContent = 'Series & Mapping';
+            if (rightPanelTitleIcon) {
+              rightPanelTitleIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+            }
             if (chartInstance) {
               chartInstance.destroy();
               chartInstance = null;
             }
-            renderChart();
+            updateTableMappingControls();
           }
           persistState();
         };

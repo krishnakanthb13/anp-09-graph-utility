@@ -42,7 +42,17 @@ A secure, custom AST-based mathematical evaluation engine completely isolated fr
 ### 4. The Interactive Dashboard (`lib/ui/htmlTemplate.js`)
 A responsive 3-pane data studio featuring:
 - **Dual Source Modes (`sourceMode: "tables" | "formulas"`)**: Seamless toggle between Markdown Table visualization and Mathematical Function Plotting.
-- **Formula Workbench Controls**: Dynamic card list for managing multiple functions $f(x)$, live validation error badges, curated curve presets, domain range bounds ($x_{min}, x_{max}$), sampling resolution slider ($2\text{--}2000$ points), and 1-click note actions.
+- **Dynamic Mode-Aware Export Menu**:
+  - Automatically alternates export options between `#exportTablesGroup` and `#exportFormulasGroup` on mode switch.
+  - Generates self-contained interactive HTML dashboards, RFC 4180 CSV tables, clean Markdown documents, and direct note publications.
+- **Formula Workbench Architecture**:
+  - Left Panel: Studio summary banner, domain bounds $[x_{min}, x_{max}]$ with dual stepper buttons, sampling resolution slider ($20\text{--}600$ points), and prominent `Generate Chart` action.
+  - Right Panel: Curve preset selector and active function manager $y = f(x)$ with individual color tags and live AST validation.
+- **Interactive Zoom, Pan & Dynamic Reset (`checkZoomState`)**:
+  - Integrates `chartjs-plugin-zoom` with smooth wheel zooming and touch/mouse panning.
+  - Hooks `onZoomComplete` and `onPanComplete` callbacks to dynamically toggle the `#resetZoomBtn` toolbar button only when zoomed or panned.
+- **Universal Theme-Aware Custom Scrollbars**:
+  - Full cross-browser scrollbar CSS (`scrollbar-width: thin; scrollbar-color: var(--border-hover) transparent;` + `::-webkit-scrollbar` styling) applied to all panels, dropdowns, and lists across all 10 color themes.
 - **Script Loader & State Machine**: Sequentially loads `Chart.js`, `chartjs-plugin-datalabels`, `hammer.js`, and `chartjs-plugin-zoom` with state tracking (`window._chartScriptsState: "loading" | "ready" | "failed"`). Dispatches `chartsReady` on completion and `chartsError` on CDN failure, gracefully notifying users without infinite loops.
 - **Per-Note State Hydration & Persistence**: Decodes the injected payload and hydrates the local `state` scoped to `currentNoteUUID` in both `localStorage` and `app.setSetting`. Includes strict input sanitization (`Number.isInteger` bounds checks for `activeTableIndex >= 0`, `selectedXIndex >= -1`, and filtering `selectedYIndices` against negative or invalid indices). Snapshot cloning (`JSON.parse(JSON.stringify(state))`) prevents asynchronous mutation races.
 - **Responsive Narrow-Screen Studio & Mobile Backdrop**:

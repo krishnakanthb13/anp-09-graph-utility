@@ -35,13 +35,17 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
   - 1-click **Save Formula Plot to Note** and **Insert Coordinate Table to Note**: automatically creates dedicated Amplenote notes named `Math Graph — <Expression>` tagged with `-reports/-math-graph` with rich Markdown metadata.
 - 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
 - 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers, escaped pipes (`\|`), and preserved column structure without modifying source markdown.
-- 💾 **Export & Save Options**:
-  - Insert chart snapshot directly above the active table in your note (with absolute table scanning, duplicate table disambiguation, and concurrent modification protection).
-  - 1-click Copy chart image to clipboard.
-  - Download high-res PNG image.
-  - Download self-contained offline Interactive HTML Dashboard (preserves your exact chart state/theme).
-  - Export raw table data to RFC 4180 compliant CSV or formatted Markdown.
-  - Copy all tables from the active note to a new note.
+- 💾 **Mode-Aware Export & Publishing Engine**:
+  - Automatically switches the **Export Dropdown** options based on whether you are in **Tables** mode or **Math Formula** mode.
+  - **Tables Mode**: Download Interactive Charts HTML, Download all Tables (MD/CSV), Copy all Tables to a new Note, Save Image Above Table in Note, Copy Chart to Clipboard, Download PNG.
+  - **Math Formula Mode**: Download Interactive Math Studio HTML, Download Coordinates Table (MD/CSV), Insert Table to new Note, Save Plot Image to new Note (both tagged `-reports/-math-graph`), Copy Chart to Clipboard, Download PNG.
+- 🔍 **Interactive Canvas Zoom, Pan & Dynamic Reset**:
+  - Native mouse wheel zooming and touch/drag panning across both data series and mathematical curves.
+  - Contextual **`Reset Zoom`** button appears in the canvas toolbar only when zoomed or panned, restoring original $[x, y]$ bounds in 1 click.
+  - Informational navigation tip positioned exclusively on the Left Panel.
+- 🎨 **10 Curated Designer Themes & Themed Scrollbars**:
+  - Seamlessly cycle between *Dark*, *Light*, *Midnight*, *Forest*, *Cyberpunk*, *Dracula*, *Nord*, *Tokyo Night*, *Solarized Light*, and *Monokai*.
+  - Full theme-aware custom scrollbar styling across all panels, dropdowns, and lists matching active color tokens.
 - 🧭 **Host Bridge Interactivity**: Switch source notes, refresh data live, and jump directly to any note without closing the dashboard.
 
 ## Installation
@@ -71,10 +75,13 @@ Launches the interactive dashboard for the current note (or opens the workspace 
 
 Inside the Dashboard:
 - **Mode Switcher**: Switch seamlessly between **`Markdown Tables`** mode and **`Math Formula`** mode.
-- **Left Panel (Tables Mode)**: Switch notes, refresh data, select heading-labeled tables, choose chart types, and toggle Rows ⇄ Cols transposition.
-- **Left Panel (Formula Mode)**: Add/remove functions $f(x)$, choose curated presets, customize domain $[x_{min}, x_{max}]$, adjust sampling resolution ($2\text{--}2000$ points), save plot images to note, and generate/insert $(x, y)$ coordinate tables directly into your active Amplenote note.
-- **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), replay animation button, theme cycler, and full export menu.
-- **Right Panel**: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with the smart **`Select All` / `Select #1`** button, select curated color palettes, and fine-tune animation easing, curve smoothing, area fills, and grid lines.
+- **Left Panel (Tables Mode)**: Table Visualizer Studio banner, note switcher, refresh data, heading-labeled table picker, chart types, and Rows ⇄ Cols transposition toggle.
+- **Left Panel (Formula Mode)**: Math Formula Studio banner, domain bounds $[x_{min}, x_{max}]$ with `▲`/`▼` steppers, sampling resolution slider ($20\text{--}600$ points), and prominent **`Generate Chart`** button.
+- **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), contextual `Reset Zoom` button, `Replay Animation` button, theme cycler, and mode-aware **Export Menu**.
+- **Right Panel**:
+  - *Tables Mode*: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with **`Select All` / `Select #1`**.
+  - *Formula Mode*: Choose curated curve presets and manage active functions $y = f(x)$ with color swatches and live syntax validation.
+  - *Shared*: Select curated color palettes and fine-tune animation easing, curve smoothing, area fills, and grid lines.
 
 ---
 

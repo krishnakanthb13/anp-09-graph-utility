@@ -1,3 +1,22 @@
+## v0.0.18 (2026-08-19)
+### 🔄 Mode-Aware Dynamic Export Menu
+- **Contextual Export Options**: The Export Dropdown automatically detects and toggles options between **Tables Mode** (`#exportTablesGroup`) and **Math Formula Mode** (`#exportFormulasGroup`).
+- **Math Formula Dedicated Exports**:
+  - ✨ *Download — Interactive Studio*: Standalone offline HTML math plotting dashboard.
+  - 📝 *Download Coordinates — MD*: Clean Markdown table file of sampled $(x, y)$ coordinate points.
+  - 📊 *Download Coordinates — CSV*: Spreadsheet format of all curve evaluations across the domain.
+  - 📋 *Insert Table to Note*: 1-click note creation with coordinates tagged `-reports/-math-graph`.
+  - 📌 *Save Plot to Note*: 1-click high-res canvas rendering note creation tagged `-reports/-math-graph`.
+- **Streamlined Left Panel Ergonomics**: Consolidated export and note-saving buttons directly into the Export Dropdown menu, keeping the Left Panel clean and focused on parameter configuration.
+
+### 🔍 Interactive Canvas Zoom, Pan & Dynamic Reset
+- **Contextual `Reset Zoom` Button**: Added a dedicated `#resetZoomBtn` in the canvas toolbar that stays hidden by default and dynamically appears whenever the user zooms or pans, resetting original bounds on click.
+- **Dedicated Navigation Tip**: Clean informational card positioned exclusively on the Left Panel.
+
+### 🎨 Universal Theme-Aware Custom Scrollbars
+- **Theme-Integrated Scrollbars**: Replaced un-themed browser scrollbars with custom CSS scrollbars bound to active theme tokens (`--border-color`, `--border-hover`, `--accent-primary`).
+- Seamless rendering across all 10 designer themes in Chromium, Edge, Safari, and Firefox.
+
 ## v0.0.17 (2026-08-19)
 ### 🧮 Mathematical Formula Plotter ($y = f(x)$)
 - **Sandboxed Formula Evaluator**: Pure AST-based mathematical tokenizer, Pratt/recursive-descent parser, and evaluator without `eval()` or dynamic `Function()` execution.

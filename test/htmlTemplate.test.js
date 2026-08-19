@@ -41,6 +41,13 @@ describe('buildChartHtml', () => {
     expect(html).toContain('autumn');
     expect(html).toContain('vintage');
     expect(html).toContain('candy');
+    expect(html).toContain('resetZoomBtn');
+    expect(html).toContain('Use mouse wheel to zoom. Drag to pan.');
+    expect(html).toContain('exportTablesGroup');
+    expect(html).toContain('exportFormulasGroup');
+    expect(html).toContain('downloadFormulaHtmlBtn');
+    expect(html).toContain('downloadFormulaTableMDBtn');
+    expect(html).toContain('downloadFormulaCSVBtn');
   });
 
   it('should have 100% syntactically valid JavaScript inside all script tags without breakout', () => {
