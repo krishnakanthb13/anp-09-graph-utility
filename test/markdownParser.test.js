@@ -106,4 +106,45 @@ describe('extractStructuredTables', () => {
     expect(tables).toHaveLength(1);
     expect(tables[0].dataRows[0]).toEqual(['Plan A', 'Option 1 | Option 2']);
   });
+
+  it('should ignore tables inside fenced code blocks', () => {
+    const input = `# Guide
+Here is some code:
+\`\`\`markdown
+| Ignored Col | Ignored Val |
+|---|---|
+| X | 10 |
+\`\`\`
+And here is a real table:
+| Real Col | Real Val |
+|---|---|
+| Y | 20 |`;
+    const tables = extractStructuredTables(input, 'Guide');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].headers).toEqual(['Real Col', 'Real Val']);
+    expect(tables[0].dataRows).toEqual([['Y', '20']]);
+  });
+
+  it('should correctly parse Amplenote tables with placeholder headers and promote next row to headers', () => {
+    const input = `| - | - |\n|---|---|\n| Item A | 10 |\n| Item B | 20 |`;
+    const tables = extractStructuredTables(input, 'Store Note');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].headers).toEqual(['Item A', '10']);
+    expect(tables[0].dataRows).toEqual([['Item B', '20']]);
+  });
+
+  it('should not treat regular text paragraphs with pipe characters as tables', () => {
+    const input = `# My Report
+> **Domain**: [-10, 10] | **Samples**: 21 points
+
+Some notes | info in regular text.
+
+| Month | Target |
+|---|---|
+| Jan | 100 |`;
+    const tables = extractStructuredTables(input, 'Report');
+    expect(tables).toHaveLength(1);
+    expect(tables[0].headers).toEqual(['Month', 'Target']);
+    expect(tables[0].dataRows).toEqual([['Jan', '100']]);
+  });
 });

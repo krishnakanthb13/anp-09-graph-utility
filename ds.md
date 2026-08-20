@@ -1,106 +1,53 @@
-# Feature Specification & Implementation Plan: Math Formula & Function Plotter
+# Graph Utility — Code Audit
 
-## 1. Overview & Architectural Goal
+**Audit date:** 2026-08-20
+**Scope:** `Graph Utility.js`, `lib/`, `test/`, and the checked-in bundle. This was a static review with a scoped automated test run; it was not an end-to-end run inside Amplenote.
 
-Extend **Graph Utility** beyond markdown table extraction to include a native **Math Formula / Function Plotter** mode. Users can input mathematical expressions $y = f(x)$, configure domains and step resolutions, and plot smooth interactive curves in Chart.js, with the ability to export the resulting graph to the active note as an image or generate $(x, y)$ coordinate markdown tables.
+## Executive summary
 
-```text
-[ User Formula Input ] (e.g., sin(x) * x, x^2 - 4x + 3)
-         ↓
-[ Safe Math Tokenizer & AST / Evaluator ]
-         ↓
-[ Sampling Engine (Domain [xmin, xmax], Step, Singularity Guard) ]
-         ↓
-┌────────────────────────────────────────────────────────┐
-│                   Chart.js Canvas                      │
-│ (Scatter/Line Mode, Cartesian Grids, Coordinate Hover) │
-└────────────────────────────────────────────────────────┘
-         │
-         ├──► Export Graph Image to Note
-         └──► Insert (x, y) Markdown Table to Note
+The plugin has good foundations: table and formula handling are separated into utilities, the formula evaluator does not use `eval`, payload data is encoded before being placed in the HTML document, and the image-save path makes a best-effort check for edits made during the upload. The scoped test suite passes: **8 suites / 61 tests**.
+
+The primary risk is **note-content integrity**. `saveImageToNote` can silently insert an image at the top of a note when it cannot prove which table was selected. The current read–upload–read–replace flow also cannot protect edits made in the small gap before the final replace. Table recognition is intentionally simple, but it currently treats code examples as live tables and misses valid tables without a leading pipe. The rest of the recommendations focus on preventing data loss, keeping the two formula engines consistent, and making verification repeatable.
+
+## Findings
+
+| Priority | Finding | Evidence | Impact | Recommended resolution |
+|---|---|---|---|---|
+| P1 | An unverified image save falls back to prepending the image to the note. | `lib/features/onEmbedCall.js:269-312` only sets `targetLine` when index and optional raw markdown match. At `:314-334`, any unmatched target with an unchanged note becomes `imageBlock + freshContent`. The UI sends the current table’s `rawTableMarkdown` (`lib/ui/htmlTemplate.js:3588`), which is transposed when transpose is enabled, while the server searches the original note. | Saving a chart for a transposed table, an invalid/stale index, or a table whose representation differs can alter the note in an unintended location. The success message still claims it was placed above the requested table. | Fail closed: if a selected table exists but cannot be verified, return an error and do not write. Use a stable table fingerprint from the original source table, or translate the selected transposed table back to that source fingerprint. Only allow a deliberate “prepend image” operation behind a separate explicit action. Add regression tests for transposed save, bad index, no-table save, and raw-markdown mismatch. |
+| P1 | The optimistic concurrency check has a remaining time-of-check/time-of-use gap. | `lib/features/onEmbedCall.js:221-336` reads `freshContent`, calculates `updatedContent`, then calls an unconditional `replaceNoteContent`. A user edit can land after the second read but before replacement. | A concurrent edit can be overwritten even though the code detects edits made earlier in the operation. This is particularly significant because the write replaces the entire note. | Prefer an Amplenote revision/ETag conditional write or an atomic insert API, if available. Otherwise clearly label this as best-effort, minimize the window, and retry only after an explicit conflict decision. Preserve/reapply a verified diff rather than replacing a stale full document. |
+| P1 | Formula-note creation accepts unvalidated, unescaped markdown fields. | `insertFormulaTableToNote` and `saveFormulaImageToNote` interpolate `heading`, `formulaTitle`, formula `name`, and `expression` directly into note names and markdown (`lib/features/onEmbedCall.js:389-414`, `:470-487`). The save buttons only check that an expression is non-empty (`lib/ui/htmlTemplate.js:4088-4094`, `:4123-4129`); they do not require successful compilation. | A formula containing newlines, headings, links, pipes, or backticks can change the generated note’s title/content structure. Invalid formulas can still generate a note full of `ERR`/`NaN`. This is a content-integrity issue rather than code execution. | Validate all bridge payloads server-side. Compile every active formula before creating a note; reject invalid ones. Normalize titles to one bounded line and escape markdown characters in generated list items/table headers. Generate the coordinate table server-side from the validated formula objects rather than trusting a client-supplied markdown table. |
+| P2 | Markdown table detection parses fenced code examples as tables and ignores valid tables without a leading pipe. | Both extractors use `trimmed.startsWith('|')` (`lib/utils/markdownParser.js:201`, `:272`); save-image table discovery repeats the same rule (`lib/features/onEmbedCall.js:239`). Neither tracks fenced code blocks. | A note that documents a markdown table inside a fenced code block can be charted or targeted by an image save. Standard pipe tables such as `Header | Value` / `--- | ---` are skipped, making extraction incomplete. The three parsers can disagree about what a “table” is. | Create one canonical Markdown table tokenizer that tracks fenced code blocks, recognizes valid delimiter rows, supports optional leading/trailing pipes, escaped pipes, CRLF, and table boundaries. Use it for extraction, transposition, CSV export, and save-image location. Add fixture-driven tests for code fences, block quotes, indentation, CRLF, optional pipes, duplicate tables, and malformed rows. |
+| P2 | Parser semantics are duplicated, which makes drift likely. | Server utilities implement table parsing, math tokenization/evaluation, sampling, CSV conversion, and transposition; `lib/ui/htmlTemplate.js` contains another table parser and another approximately 240-line math evaluator/sampler (`:1715-1964`, `:2223-2314`). | A correction in `lib/utils` can leave the browser dashboard behaving differently. For example, server formula sampling emits `{x, y}` points with a 6-decimal x value, while the client emits y-only data with 4-decimal x labels. | Make the utility modules the single source of truth and bundle them into the embed, or generate the browser implementation from shared source during build. Add parity tests that run the same formula/table fixtures through both paths and compare results. |
+| P2 | Formula syntax does not support scientific notation and has an undocumented near-zero rule. | The number scanner in `lib/utils/mathEvaluator.js:84-95` accepts only digits and `.`. Thus `1e3` tokenizes as `1 * e * 3`, not 1000. Division/modulo return `null` when `abs(divisor) < 1e-15` (`:381-389`). | Common engineering/scientific formulas produce wrong values without an error. Very small but valid divisors are treated as singularities. | Tokenize exponent notation (`1e3`, `1.2E-4`) explicitly; reject malformed exponents. Make discontinuity clipping a sampling/display policy, while evaluator arithmetic follows JavaScript/IEEE semantics or documents an explicit configurable epsilon. Add tests for exponent notation, tiny valid values, and asymptotes. |
+| P2 | Persisted dashboard state is an unbounded read-modify-write map with no schema/version migration. | `saveState` reads the entire `Graph_Dashboard_State`, overwrites one entry, then writes the entire map (`lib/features/onEmbedCall.js:24-47`). The client also writes whole snapshots to local storage every 300 ms (`lib/ui/htmlTemplate.js:2027-2051`). | Two dashboard instances can overwrite each other’s state, a large state can exceed host-setting limits, and future state changes have no reliable migration path. | Define and validate a versioned state schema. Store per-note state separately if the host permits it; otherwise cap the number/size of entries, preserve timestamps, merge only the note being updated, and report quota/write failures to the user. Add tests for malformed JSON, version migration, quota failure, and concurrent saves. |
+| P2 | The dashboard depends on CDN scripts without integrity metadata, a fallback, or an explicit load timeout. | `lib/ui/htmlTemplate.js:61-91` loads Chart.js and plugins from cdnjs. The scripts have no `integrity` attribute; failure is handled, but a request that never resolves leaves the dashboard retrying rendering. Downloaded interactive HTML has the same dependency. | Offline exports do not work. A compromised/changed CDN response becomes executable in the dashboard, and slow/hung connections have a poor failure mode. | Bundle vetted Chart.js assets for offline exports where practical, or add SRI hashes, CSP, a bounded loader timeout, and a user-visible retry/fallback. Pin and periodically review versions. |
+| P3 | The test and build workflow is not self-contained, and repository test reporting is stale. | There is no project `package.json` or Jest configuration. `npx --no-install jest --runInBand` discovers sibling repositories and fails; the scoped command succeeds only with explicit root/ESM options. `test/test_report.txt` says 19 tests, while the audited scoped run found 61. | Contributors can obtain misleading failures or false confidence. The stale report also undermines release evidence. | Add a local `package.json`, lockfile, Jest ESM configuration, and scripts such as `test`, `test:watch`, `lint`, and `build`. Replace the hand-maintained test report with CI output/badges. Include a clean-worktree build check that verifies `build/graph-utility.compiled.js` is reproducible from source. |
+| P3 | Several feature modules are dead from the plugin entry point. | `lib/features/download.js`, `viewer.js`, and `update.js` are exported from `lib/features/index.js`, but `Graph Utility.js` only exposes “Open Dashboard” and imports only dashboard/embed handlers. | Dead code adds maintenance surface and can cause documentation or test assumptions to diverge from user-visible behavior. | Either expose and document these options, or remove the unused modules and associated exports/tests. Keep the public plugin surface in one manifest-like declaration and test it. |
+
+## Positive controls observed
+
+- The formula evaluator uses a tokenizer/AST evaluator rather than `eval` or the `Function` constructor (`lib/utils/mathEvaluator.js`).
+- Payload JSON escapes `<` before insertion into the application/json script tag (`lib/ui/htmlTemplate.js:24`), which prevents a `</script>` breakout from note content.
+- Table row splitting correctly accounts for escaped pipes, and CSV values are quoted/escaped.
+- The image-save flow does detect several pre-write conflict scenarios and has tests for shifted and duplicate tables. The P1 issue is the unsafe fallback when that verification fails without a detected content change.
+
+## Verification performed
+
+Executed from this project directory:
+
+```powershell
+$env:NODE_OPTIONS='--experimental-vm-modules'
+npx --no-install jest test --runInBand --rootDir . --testMatch '**/*.test.js'
 ```
 
----
+Result: **8 test suites passed, 61 tests passed, 0 failed**.
 
-## 2. Step-by-Step Implementation Breakdown
+An unscoped Jest command was also attempted. It is not a valid project verification command because it inherited configuration from the parent workspace, discovered sibling projects, and failed before running this project’s ESM tests. This directly supports the workflow finding above.
 
-### Phase 1: Math Expression Parsing & Evaluation Engine
-* **Target File**: `lib/utils/mathEvaluator.js`
-* **Core Tasks**:
-  1. **Tokenizer & Parser**:
-     - Parse arithmetic operators: `+`, `-`, `*`, `/`, `^`, `%`, and parentheses `()`.
-     - Support mathematical constants: `pi`, `e`, `tau`, `phi`.
-     - Handle implicit multiplication: `2x` $\to$ `2*x`, `3sin(x)` $\to$ `3*sin(x)`, `(x+1)(x-1)`.
-  2. **Standard Function Library**:
-     - Trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`.
-     - Hyperbolic: `sinh`, `cosh`, `tanh`.
-     - Logarithmic & Exponential: `log` ($\log_{10}$), `ln` ($\log_e$), `exp`, `sqrt`, `cbrt`, `pow`.
-     - Rounding & Utilities: `abs`, `floor`, `ceil`, `round`, `sign`, `min`, `max`.
-  3. **Defensive Runtime Evaluation**:
-     - Zero-division, imaginary results (e.g. $\sqrt{-1}$ without complex mode), and asymptote handling ($\tan(\frac{\pi}{2})$) sanitized to `null`/`NaN` to prevent Chart.js crashes.
-     - Strict execution sandbox (no `eval()` or dangerous code execution).
+## Suggested delivery order
 
----
-
-### Phase 2: Domain Sampling & Multi-Series Engine
-* **Target File**: `lib/utils/formulaSampler.js`
-* **Core Tasks**:
-  1. **Domain Sampling**:
-     - Sample points across range $[x_{min}, x_{max}]$ with configurable point count (e.g., 200–500 sample points).
-     - Support linear and logarithmic step scaling.
-  2. **Multi-Formula Series**:
-     - Support multiple simultaneous curves (e.g., $f_1(x) = \sin(x)$, $f_2(x) = \cos(x)$).
-     - Assign harmonious color palettes to each series matching Graph Utility's cyclic theming.
-  3. **Dataset Formatting for Chart.js**:
-     - Format samples into `{ x: number, y: number }` coordinates compatible with Chart.js line/scatter datasets.
-     - Calculate automatic $y$-axis bounds with clamping for discontinuous spikes.
-
----
-
-### Phase 3: Workbench UI & Mode Switcher
-* **Target File**: `lib/ui/htmlTemplate.js`
-* **Core Tasks**:
-  1. **Source Mode Selector**:
-     - Add top workbench toggle: **"Markdown Tables"** vs **"Math Formula Plotter"**.
-  2. **Formula Controls Panel**:
-     - Formula input fields with dynamic "+ Add Function" series management.
-     - Domain controls: $x_{min}$, $x_{max}$, and resolution slider.
-     - Presets library dropdown (e.g., Quadratic, Sine Wave, Sigmoid, Gaussian / Normal Distribution, Damped Harmonic Oscillator).
-  3. **Live Interactive Canvas**:
-     - Render smooth spline curves (`tension: 0.2–0.4`) with Cartesian zero-axes indicators ($x=0, y=0$).
-     - Tooltips displaying exact coordinate precision $(x, f(x))$.
-     - Debounced evaluation on formula typing with real-time syntax validation / error badges.
-
----
-
-### Phase 4: Amplenote Integration & Action Handlers
-* **Target File**: `lib/features/onEmbedCall.js`
-* **Core Tasks**:
-  1. **Export Graph Image to Note**:
-     - Retain current canvas snapshot export to insert high-resolution PNG math plot into the active note.
-  2. **Generate Coordinate Markdown Table**:
-     - Provide an action button: **"Insert Table to Note"**.
-     - Formats sampled points as a standard Markdown table:
-       ```markdown
-       | x | f(x) = sin(x) | g(x) = cos(x) |
-       |---|---|---|
-       | -3.14 | 0.00 | -1.00 |
-       ...
-       ```
-  3. **State Persistence**:
-     - Persist active formulas, range settings, and view mode inside Amplenote's plugin state object so user setups are restored across sessions.
-
----
-
-### Phase 5: Verification, Testing & Bundling
-* **Target Files**: `test/`, `build/`, documentation files
-* **Core Tasks**:
-  1. **Unit Testing**:
-     - Test evaluator on edge cases: operator precedence, invalid syntax, division by zero, extreme domains.
-  2. **Integrity & Performance Checks**:
-     - Verify smooth UI rendering at 60fps with up to 1,000 sampled points.
-     - Ensure zero regression on existing markdown table parsing and chart features.
-  3. **Bundle & Documentation**:
-     - Run `anp_bundle` to produce the single-file distribution bundle.
-     - Update `README.md`, `CODE_DOCUMENTATION.md`, and `RELEASE_NOTES.md`.
-
+1. Fix the unverified save fallback and add conflict/transposition regression tests.
+2. Introduce canonical table-location parsing and use it for both rendering and note writes.
+3. Validate bridge payloads and generate formula notes from server-validated formulas.
+4. Consolidate duplicated browser/server logic and add parity fixtures.
+5. Make testing, bundling, and release verification self-contained in this repository.

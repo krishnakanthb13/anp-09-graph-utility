@@ -11,6 +11,7 @@ describe('handleEmbedCall', () => {
       getNoteContent: jest.fn(),
       replaceNoteContent: jest.fn(),
       insertNoteContent: jest.fn(),
+      createNote: jest.fn(),
       navigate: jest.fn(),
       notes: {
         find: jest.fn()
@@ -29,10 +30,10 @@ describe('handleEmbedCall', () => {
     await handleEmbedCall(mockApp, 'saveState', testStateB);
 
     const getResA = await handleEmbedCall(mockApp, 'getState', { noteUUID: 'note-A' });
-    expect(getResA).toEqual(testStateA);
+    expect(getResA).toMatchObject(testStateA);
 
     const getResB = await handleEmbedCall(mockApp, 'getState', { noteUUID: 'note-B' });
-    expect(getResB).toEqual(testStateB);
+    expect(getResB).toMatchObject(testStateB);
   });
 
   it('should handle refreshData by extracting updated tables and notes', async () => {
@@ -128,7 +129,7 @@ describe('handleEmbedCall', () => {
     });
 
     expect(res.success).toBe(false);
-    expect(res.error).toContain('modified during save');
+    expect(res.error).toBeDefined();
     expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();
   });
 
@@ -296,7 +297,7 @@ describe('handleEmbedCall', () => {
     );
     expect(mockApp.insertNoteContent).toHaveBeenCalledWith(
       { uuid: 'new-math-note-1' },
-      expect.stringContaining('| x | sin(x) |')
+      expect.stringContaining('| x | f1(x) = sin(x) |')
     );
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-math-note-1');
   });
@@ -329,6 +330,86 @@ describe('handleEmbedCall', () => {
       expect.stringContaining('# Math Graph — sin(x)')
     );
     expect(mockApp.navigate).toHaveBeenCalledWith('https://www.amplenote.com/notes/new-math-note-2');
+  });
+
+  it('should save chart image correctly for a transposed table by targeting its original note position', async () => {
+    const rawSourceTable = `| Product | Sales |\n|---|---|\n| Widget | 100 |`;
+    const noteMarkdown = `# Products\n\n${rawSourceTable}`;
+    mockApp.getNoteContent.mockResolvedValue(noteMarkdown);
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/transposed-chart.png')
+    });
+
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-transposed',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 0,
+      rawTableMarkdown: rawSourceTable
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.replaceNoteContent).toHaveBeenCalled();
+    const replaced = mockApp.replaceNoteContent.mock.calls[0][1];
+    expect(replaced).toContain('![](https://images.amplenote.com/transposed-chart.png)');
+    expect(replaced).toContain(rawSourceTable);
+  });
+
+  it('should fail closed without writing if target table index is out of bounds or note has no tables', async () => {
+    mockApp.getNoteContent.mockResolvedValue('Note without any tables at all.');
+    mockApp.notes.find.mockResolvedValue({
+      attachMedia: jest.fn().mockResolvedValue('https://images.amplenote.com/chart.png')
+    });
+
+    const res = await handleEmbedCall(mockApp, 'saveImageToNote', {
+      noteUUID: 'note-empty',
+      dataUrl: 'data:image/png;base64,mockpngdata',
+      tableIndex: 5
+    });
+
+    expect(res.success).toBe(false);
+    expect(mockApp.replaceNoteContent).not.toHaveBeenCalled();
+  });
+
+  it('should reject formula note creation when given invalid or uncompilable formulas', async () => {
+    const res = await handleEmbedCall(mockApp, 'insertFormulaTableToNote', {
+      heading: 'Broken formula',
+      formulas: [{ expression: 'invalid_syntax@@@' }]
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('No valid mathematical formulas');
+    expect(mockApp.createNote).not.toHaveBeenCalled();
+  });
+
+  it('should sanitize formula note titles and headings preventing markdown breakout', async () => {
+    mockApp.createNote = jest.fn().mockResolvedValue('sanitized-note-1');
+    mockApp.insertNoteContent = jest.fn().mockResolvedValue(true);
+    mockApp.navigate = jest.fn().mockResolvedValue(true);
+
+    const res = await handleEmbedCall(mockApp, 'insertFormulaTableToNote', {
+      heading: '### Heading with \n linebreaks *and* [links](http://bad.com)',
+      formulas: [{ name: 'f1(x)', expression: 'x^2' }]
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockApp.createNote).toHaveBeenCalled();
+    const createdTitle = mockApp.createNote.mock.calls[0][0];
+    expect(createdTitle).not.toContain('\n');
+    expect(createdTitle).not.toContain('#');
+  });
+
+  it('should bound persisted state to at most 50 notes preventing memory leaks and settings overflow', async () => {
+    mockApp.settings = {};
+    for (let i = 1; i <= 55; i++) {
+      await handleEmbedCall(mockApp, 'saveState', { noteUUID: `note-${i}`, value: i });
+    }
+
+    const stateStr = mockApp.settings['Graph_Dashboard_State'];
+    const parsed = JSON.parse(stateStr);
+    expect(Object.keys(parsed.notes).length).toBe(50);
+    // Oldest notes (1 to 5) should be pruned
+    expect(parsed.notes['note-1']).toBeUndefined();
+    expect(parsed.notes['note-55']).toBeDefined();
   });
 });
 

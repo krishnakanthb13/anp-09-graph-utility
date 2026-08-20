@@ -75,7 +75,8 @@ function splitTableRow(rowStr) {
 }
 function removeEmptyRowsAndColumns(table) {
   if (!table || typeof table !== "string") return "";
-  const rows = table.split("\n").filter((row) => row.trim().startsWith("|"));
+  const lines = table.split("\n");
+  const rows = lines.filter((row) => row.trim().startsWith("|"));
   if (rows.length === 0) return "";
   const parsedRows = rows.map(splitTableRow);
   let columnCount = 0;
@@ -105,20 +106,20 @@ function removeEmptyRowsAndColumns(table) {
   return cleanedRows.join("\n");
 }
 function isDelimiterOrPlaceholderRow(row) {
-  if (!row) return true;
+  if (!row) return false;
+  let cells = [];
   if (typeof row === "string") {
     const trimmed = row.trim();
     if (!trimmed.startsWith("|")) return false;
-    const cells = splitTableRow(trimmed);
-    return cells.every((c) => /^[\s\-:]*$/.test(c));
+    cells = splitTableRow(trimmed);
+  } else if (Array.isArray(row)) {
+    cells = row;
   }
-  if (Array.isArray(row)) {
-    return row.every((c) => typeof c === "string" && /^[\s\-:]*$/.test(c));
-  }
-  return false;
+  if (cells.length === 0) return false;
+  return cells.every((c) => typeof c === "string" && /^[\s:]*-+[\s\-:]*$/.test(c.trim()));
 }
 function cleanHeaderName(rawHeader, index) {
-  const cleaned = removeHtmlComments(rawHeader || "").trim();
+  const cleaned = removeHtmlComments(rawHeader || "").trim().replace(/^[*_~`]+|[*_~`]+$/g, "").trim();
   if (!cleaned || /^[\s\-:]+$/.test(cleaned)) {
     return `Column ${index + 1}`;
   }
@@ -171,94 +172,96 @@ function parseTableLinesIntoObject(cleanedTableMarkdown, tableIndex, heading, no
     rawTableMarkdown: cleanedTableMarkdown
   };
 }
-function extractTablesFromMarkdown(markdown, noteName = "") {
-  const lines = (markdown || "").split("\n");
-  let tableCount = 0;
-  let inTable = false;
+function findMarkdownTableBlocks(markdown, noteName = "") {
+  if (!markdown || typeof markdown !== "string") return [];
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let inCodeFence = false;
   let currentHeading = "";
-  const tables = [];
-  let currentTable = [];
-  lines.forEach((line) => {
+  let currentTableLines = [];
+  let tableStartLine = -1;
+  const processAccumulatedTable = () => {
+    if (currentTableLines.length === 0) return;
+    const rawText = currentTableLines.map((t) => t.text).join("\n");
+    const startLine = tableStartLine;
+    const endLine = currentTableLines[currentTableLines.length - 1].lineIndex;
+    const cleaned = removeEmptyRowsAndColumns(rawText);
+    if (cleaned) {
+      const tableIndex = blocks.length + 1;
+      const tableObj = parseTableLinesIntoObject(cleaned, tableIndex, currentHeading, noteName);
+      if (tableObj) {
+        tableObj.startLine = startLine;
+        tableObj.endLine = endLine;
+        tableObj.sourceRaw = rawText.trim();
+        blocks.push(tableObj);
+      }
+    }
+    currentTableLines = [];
+    tableStartLine = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
+    if (/^(```|~~~)/.test(trimmed)) {
+      inCodeFence = !inCodeFence;
+      if (currentTableLines.length > 0) {
+        processAccumulatedTable();
+      }
+      continue;
+    }
+    if (inCodeFence) {
+      continue;
+    }
     if (trimmed.startsWith("#")) {
       const headingMatch = trimmed.match(/^#+\s*(.+)$/);
       if (headingMatch && headingMatch[1]) {
         currentHeading = removeHtmlComments(headingMatch[1]).trim();
       }
-    }
-    if (trimmed.startsWith("|")) {
-      if (!inTable) {
-        tableCount++;
-        if (tableCount > 1) {
-          tables.push("---");
-        }
-        let label = `# Table ${tableCount}`;
-        if (noteName || currentHeading) {
-          const parts = [];
-          if (noteName) parts.push(noteName);
-          if (currentHeading) parts.push(currentHeading);
-          parts.push(`Table ${tableCount}`);
-          label = `# ${parts.join(" > ")}`;
-        }
-        tables.push(`${label}
-`);
-        inTable = true;
+      if (currentTableLines.length > 0) {
+        processAccumulatedTable();
       }
-      currentTable.push(line);
-    } else if (inTable) {
-      inTable = false;
-      const tableContent = currentTable.join("\n");
-      tables.push(removeEmptyRowsAndColumns(tableContent));
-      tables.push("");
-      currentTable = [];
+      continue;
     }
-  });
-  if (currentTable.length > 0) {
-    const tableContent = currentTable.join("\n");
-    tables.push(removeEmptyRowsAndColumns(tableContent));
+    const isTableRow = trimmed.startsWith("|");
+    if (isTableRow && trimmed.length > 0) {
+      if (currentTableLines.length === 0) {
+        tableStartLine = i;
+      }
+      currentTableLines.push({ lineIndex: i, text: line });
+    } else {
+      if (currentTableLines.length > 0) {
+        processAccumulatedTable();
+      }
+    }
   }
-  const processedContent = tables.join("\n\n");
+  if (currentTableLines.length > 0) {
+    processAccumulatedTable();
+  }
+  return blocks;
+}
+function extractTablesFromMarkdown(markdown, noteName = "") {
+  const blocks = findMarkdownTableBlocks(markdown, noteName);
+  if (blocks.length === 0) return "";
+  const sections = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    let label = `# Table ${block.index}`;
+    if (noteName || block.heading) {
+      const parts = [];
+      if (noteName) parts.push(noteName);
+      if (block.heading) parts.push(block.heading);
+      parts.push(`Table ${block.index}`);
+      label = `# ${parts.join(" > ")}`;
+    }
+    sections.push(`${label}
+
+${block.rawTableMarkdown}`);
+  }
+  const processedContent = sections.join("\n\n---\n\n");
   return removeHtmlComments(processedContent);
 }
 function extractStructuredTables(markdown, noteName = "") {
-  const lines = (markdown || "").split("\n");
-  let tableCount = 0;
-  let inTable = false;
-  let currentHeading = "";
-  const result = [];
-  let currentTableLines = [];
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("#")) {
-      const headingMatch = trimmed.match(/^#+\s*(.+)$/);
-      if (headingMatch && headingMatch[1]) {
-        currentHeading = removeHtmlComments(headingMatch[1]).trim();
-      }
-    }
-    if (trimmed.startsWith("|")) {
-      if (!inTable) {
-        tableCount++;
-        inTable = true;
-      }
-      currentTableLines.push(line);
-    } else if (inTable) {
-      inTable = false;
-      const cleaned = removeEmptyRowsAndColumns(currentTableLines.join("\n"));
-      if (cleaned) {
-        const tableObj = parseTableLinesIntoObject(cleaned, tableCount, currentHeading, noteName);
-        if (tableObj) result.push(tableObj);
-      }
-      currentTableLines = [];
-    }
-  });
-  if (currentTableLines.length > 0) {
-    const cleaned = removeEmptyRowsAndColumns(currentTableLines.join("\n"));
-    if (cleaned) {
-      const tableObj = parseTableLinesIntoObject(cleaned, tableCount, currentHeading, noteName);
-      if (tableObj) result.push(tableObj);
-    }
-  }
-  return result;
+  return findMarkdownTableBlocks(markdown, noteName);
 }
 
 // anp-09-graph-utility/lib/utils/tableTranspose.js
@@ -394,6 +397,356 @@ var TOKEN_TYPES = Object.freeze({
   RPAREN: "RPAREN",
   COMMA: "COMMA"
 });
+function tokenizeMath(input) {
+  if (typeof input !== "string") {
+    throw new TypeError("Formula expression must be a string");
+  }
+  const raw = input.trim();
+  if (!raw) {
+    throw new Error("Formula expression cannot be empty");
+  }
+  const tokens = [];
+  let i = 0;
+  const len = raw.length;
+  while (i < len) {
+    const ch = raw[i];
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
+    }
+    if (/[0-9]/.test(ch) || ch === "." && i + 1 < len && /[0-9]/.test(raw[i + 1])) {
+      let numStr = "";
+      let hasDot = false;
+      while (i < len && (/[0-9]/.test(raw[i]) || raw[i] === ".")) {
+        if (raw[i] === ".") {
+          if (hasDot) {
+            throw new Error(`Invalid floating-point number at position ${i}`);
+          }
+          hasDot = true;
+        }
+        numStr += raw[i];
+        i++;
+      }
+      if (i < len && (raw[i] === "e" || raw[i] === "E")) {
+        const nextChar = raw[i + 1];
+        const nextNextChar = raw[i + 2];
+        const hasSignAndDigit = (nextChar === "+" || nextChar === "-") && nextNextChar && /[0-9]/.test(nextNextChar);
+        const hasDigit = nextChar && /[0-9]/.test(nextChar);
+        if (hasSignAndDigit || hasDigit) {
+          numStr += raw[i];
+          i++;
+          if (raw[i] === "+" || raw[i] === "-") {
+            numStr += raw[i];
+            i++;
+          }
+          while (i < len && /[0-9]/.test(raw[i])) {
+            numStr += raw[i];
+            i++;
+          }
+        }
+      }
+      const numVal = Number(numStr);
+      if (isNaN(numVal)) {
+        throw new Error(`Invalid number format '${numStr}'`);
+      }
+      tokens.push({ type: TOKEN_TYPES.NUMBER, value: numVal });
+      continue;
+    }
+    if (/[a-zA-Z_]/.test(ch)) {
+      let id = "";
+      while (i < len && /[a-zA-Z0-9_]/.test(raw[i])) {
+        id += raw[i];
+        i++;
+      }
+      const lower = id.toLowerCase();
+      if (lower === "x") {
+        tokens.push({ type: TOKEN_TYPES.VARIABLE, value: "x" });
+      } else if (lower in CONSTANTS) {
+        tokens.push({ type: TOKEN_TYPES.CONSTANT, value: CONSTANTS[lower], name: lower });
+      } else if (lower in FUNCTIONS) {
+        tokens.push({ type: TOKEN_TYPES.FUNCTION, value: FUNCTIONS[lower], name: lower });
+      } else {
+        throw new Error(`Unknown identifier '${id}' at position ${i - id.length}`);
+      }
+      continue;
+    }
+    if (ch === "+") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "+", precedence: 1, assoc: "L" });
+      i++;
+    } else if (ch === "-") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "-", precedence: 1, assoc: "L" });
+      i++;
+    } else if (ch === "*") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "*", precedence: 2, assoc: "L" });
+      i++;
+    } else if (ch === "/") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "/", precedence: 2, assoc: "L" });
+      i++;
+    } else if (ch === "%") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "%", precedence: 2, assoc: "L" });
+      i++;
+    } else if (ch === "^") {
+      tokens.push({ type: TOKEN_TYPES.OPERATOR, value: "^", precedence: 3, assoc: "R" });
+      i++;
+    } else if (ch === "(") {
+      tokens.push({ type: TOKEN_TYPES.LPAREN, value: "(" });
+      i++;
+    } else if (ch === ")") {
+      tokens.push({ type: TOKEN_TYPES.RPAREN, value: ")" });
+      i++;
+    } else if (ch === ",") {
+      tokens.push({ type: TOKEN_TYPES.COMMA, value: "," });
+      i++;
+    } else {
+      throw new Error(`Unexpected character '${ch}' at position ${i}`);
+    }
+  }
+  return insertImplicitMultiplication(tokens);
+}
+function insertImplicitMultiplication(tokens) {
+  const result = [];
+  const multToken = { type: TOKEN_TYPES.OPERATOR, value: "*", precedence: 2, assoc: "L" };
+  for (let i = 0; i < tokens.length; i++) {
+    const curr = tokens[i];
+    result.push(curr);
+    if (i + 1 < tokens.length) {
+      const next = tokens[i + 1];
+      const currCanEndVal = curr.type === TOKEN_TYPES.NUMBER || curr.type === TOKEN_TYPES.VARIABLE || curr.type === TOKEN_TYPES.CONSTANT || curr.type === TOKEN_TYPES.RPAREN;
+      const nextCanStartVal = next.type === TOKEN_TYPES.NUMBER || next.type === TOKEN_TYPES.VARIABLE || next.type === TOKEN_TYPES.CONSTANT || next.type === TOKEN_TYPES.FUNCTION || next.type === TOKEN_TYPES.LPAREN;
+      if (currCanEndVal && nextCanStartVal) {
+        result.push(multToken);
+      }
+    }
+  }
+  return result;
+}
+function parseMathTokens(tokens) {
+  let index = 0;
+  function peek() {
+    return tokens[index] || null;
+  }
+  function consume(expectedType, expectedVal) {
+    const token = tokens[index];
+    if (!token) {
+      throw new Error(`Unexpected end of formula`);
+    }
+    if (expectedType && token.type !== expectedType) {
+      throw new Error(`Expected token type ${expectedType}, found ${token.type}`);
+    }
+    if (expectedVal && token.value !== expectedVal) {
+      throw new Error(`Expected '${expectedVal}', found '${token.value}'`);
+    }
+    index++;
+    return token;
+  }
+  function parsePrimary() {
+    const token = peek();
+    if (!token) {
+      throw new Error("Unexpected end of expression");
+    }
+    if (token.type === TOKEN_TYPES.OPERATOR && token.value === "+") {
+      consume();
+      return parsePrimary();
+    }
+    if (token.type === TOKEN_TYPES.OPERATOR && token.value === "-") {
+      consume();
+      const expr = parseExpression(3);
+      return { type: "UNARY_NEGATION", argument: expr };
+    }
+    if (token.type === TOKEN_TYPES.NUMBER) {
+      consume();
+      return { type: "NUMBER", value: token.value };
+    }
+    if (token.type === TOKEN_TYPES.CONSTANT) {
+      consume();
+      return { type: "CONSTANT", value: token.value, name: token.name };
+    }
+    if (token.type === TOKEN_TYPES.VARIABLE) {
+      consume();
+      return { type: "VARIABLE", name: "x" };
+    }
+    if (token.type === TOKEN_TYPES.FUNCTION) {
+      const fnToken = consume();
+      consume(TOKEN_TYPES.LPAREN, "(");
+      const args = [];
+      if (peek() && peek().type !== TOKEN_TYPES.RPAREN) {
+        args.push(parseExpression(0));
+        while (peek() && peek().type === TOKEN_TYPES.COMMA) {
+          consume(TOKEN_TYPES.COMMA, ",");
+          args.push(parseExpression(0));
+        }
+      }
+      consume(TOKEN_TYPES.RPAREN, ")");
+      return { type: "FUNCTION_CALL", name: fnToken.name, fn: fnToken.value, args };
+    }
+    if (token.type === TOKEN_TYPES.LPAREN) {
+      consume(TOKEN_TYPES.LPAREN, "(");
+      const expr = parseExpression(0);
+      consume(TOKEN_TYPES.RPAREN, ")");
+      return expr;
+    }
+    throw new Error(`Unexpected token '${token.value || token.type}'`);
+  }
+  function parseExpression(minPrecedence) {
+    let left = parsePrimary();
+    while (index < tokens.length) {
+      const token = peek();
+      if (!token || token.type !== TOKEN_TYPES.OPERATOR) {
+        break;
+      }
+      const precedence = token.precedence;
+      if (precedence < minPrecedence) {
+        break;
+      }
+      consume();
+      const nextMinPrecedence = token.assoc === "L" ? precedence + 1 : precedence;
+      const right = parseExpression(nextMinPrecedence);
+      left = {
+        type: "BINARY_OP",
+        operator: token.value,
+        left,
+        right
+      };
+    }
+    return left;
+  }
+  const ast = parseExpression(0);
+  if (index < tokens.length) {
+    throw new Error(`Unexpected extra tokens after expression: '${tokens[index].value}'`);
+  }
+  return ast;
+}
+function evaluateAst(node, xVal) {
+  if (!node) return null;
+  switch (node.type) {
+    case "NUMBER":
+    case "CONSTANT":
+      return node.value;
+    case "VARIABLE":
+      return xVal;
+    case "UNARY_NEGATION": {
+      const val = evaluateAst(node.argument, xVal);
+      return val === null || isNaN(val) ? null : -val;
+    }
+    case "FUNCTION_CALL": {
+      const evaluatedArgs = [];
+      for (const arg of node.args) {
+        const res = evaluateAst(arg, xVal);
+        if (res === null || isNaN(res)) return null;
+        evaluatedArgs.push(res);
+      }
+      try {
+        const result = node.fn(...evaluatedArgs);
+        if (!isFinite(result) || isNaN(result)) return null;
+        return result;
+      } catch {
+        return null;
+      }
+    }
+    case "BINARY_OP": {
+      const left = evaluateAst(node.left, xVal);
+      const right = evaluateAst(node.right, xVal);
+      if (left === null || right === null || isNaN(left) || isNaN(right)) {
+        return null;
+      }
+      let res;
+      switch (node.operator) {
+        case "+":
+          res = left + right;
+          break;
+        case "-":
+          res = left - right;
+          break;
+        case "*":
+          res = left * right;
+          break;
+        case "/":
+          if (right === 0) return null;
+          res = left / right;
+          break;
+        case "%":
+          if (right === 0) return null;
+          res = left % right;
+          break;
+        case "^":
+          res = Math.pow(left, right);
+          break;
+        default:
+          return null;
+      }
+      return !isFinite(res) || isNaN(res) ? null : res;
+    }
+    default:
+      return null;
+  }
+}
+function compileMathExpression(formulaStr) {
+  try {
+    const tokens = tokenizeMath(formulaStr);
+    const ast = parseMathTokens(tokens);
+    return {
+      ast,
+      error: null,
+      evaluate: (x) => evaluateAst(ast, x)
+    };
+  } catch (err) {
+    return {
+      ast: null,
+      error: err.message,
+      evaluate: () => null
+    };
+  }
+}
+
+// anp-09-graph-utility/lib/utils/formulaSampler.js
+function generateFormulaMarkdownTable(formulas = [], options = {}) {
+  const normFormulas = formulas.map((f, idx) => {
+    if (typeof f === "string") {
+      return { expression: f, name: `f${idx + 1}(x) = ${f}`, active: true };
+    }
+    return {
+      expression: f.expression || "",
+      name: f.name || `f${idx + 1}(x) = ${f.expression || ""}`,
+      active: f.active !== false
+    };
+  }).filter((f) => f.active && f.expression.trim().length > 0);
+  if (normFormulas.length === 0) {
+    return "";
+  }
+  const points = Math.max(5, Math.min(101, options.points || 21));
+  const xMin = Number.isFinite(options.xMin) ? options.xMin : -10;
+  const xMax = Number.isFinite(options.xMax) ? options.xMax : 10;
+  const step = (xMax - xMin) / (points - 1);
+  const compiledList = normFormulas.map((f) => ({
+    name: f.name.replace(/\|/g, "\\|"),
+    compiled: compileMathExpression(f.expression)
+  }));
+  const headers = ["x", ...compiledList.map((item) => item.name)];
+  const headerRow = `| ${headers.join(" | ")} |`;
+  const separatorRow = `| ${headers.map(() => "---").join(" | ")} |`;
+  const rows = [];
+  for (let i = 0; i < points; i++) {
+    const x = i === points - 1 ? xMax : xMin + i * step;
+    const cleanX = Number(x.toFixed(4));
+    const cellVals = [String(cleanX)];
+    for (const item of compiledList) {
+      if (item.compiled.error) {
+        cellVals.push("ERR");
+      } else {
+        const y = item.compiled.evaluate(cleanX);
+        if (y === null || isNaN(y) || !isFinite(y)) {
+          cellVals.push("NaN");
+        } else {
+          cellVals.push(String(Number(y.toFixed(4))));
+        }
+      }
+    }
+    rows.push(`| ${cellVals.join(" | ")} |`);
+  }
+  return `${headerRow}
+${separatorRow}
+${rows.join("\n")}`;
+}
 
 // anp-09-graph-utility/lib/features/onEmbedCall.js
 async function getNote(app, uuid) {
@@ -411,20 +764,40 @@ async function handleEmbedCall(app, actionName, payload = {}) {
     switch (actionName) {
       case "saveState": {
         const incoming = typeof payload === "string" ? JSON.parse(payload) : payload;
+        if (!incoming || typeof incoming !== "object" || !incoming.noteUUID || typeof incoming.noteUUID !== "string") {
+          return { success: false, error: "Invalid state payload or missing noteUUID." };
+        }
         const currentSetting = (app.settings || {})["Graph_Dashboard_State"];
         let stateMap = { version: 1, notes: {} };
         if (currentSetting) {
           try {
             const parsed = typeof currentSetting === "string" ? JSON.parse(currentSetting) : currentSetting;
             if (parsed && typeof parsed === "object") {
-              stateMap = parsed.notes ? parsed : { version: 1, notes: parsed };
+              stateMap = parsed.notes && typeof parsed.notes === "object" ? parsed : { version: 1, notes: parsed };
+              if (!stateMap.notes || typeof stateMap.notes !== "object") {
+                stateMap.notes = {};
+              }
             }
           } catch {
           }
         }
-        if (incoming && incoming.noteUUID) {
-          stateMap.notes[incoming.noteUUID] = incoming;
-          stateMap.activeNoteUUID = incoming.noteUUID;
+        stateMap.version = 1;
+        stateMap.notes[incoming.noteUUID] = {
+          ...incoming,
+          updatedAt: Date.now()
+        };
+        stateMap.activeNoteUUID = incoming.noteUUID;
+        const noteKeys = Object.keys(stateMap.notes);
+        if (noteKeys.length > 50) {
+          const sortedKeys = noteKeys.sort((a, b) => {
+            const timeA = stateMap.notes[a]?.updatedAt || 0;
+            const timeB = stateMap.notes[b]?.updatedAt || 0;
+            return timeA - timeB;
+          });
+          const keysToRemove = sortedKeys.slice(0, noteKeys.length - 50);
+          for (const k of keysToRemove) {
+            delete stateMap.notes[k];
+          }
         }
         if (typeof app.setSetting === "function") {
           await app.setSetting("Graph_Dashboard_State", JSON.stringify(stateMap));
@@ -591,53 +964,39 @@ async function handleEmbedCall(app, actionName, payload = {}) {
             error: mediaAttached ? "Image uploaded, but could not read latest note content to insert." : "Could not read note content."
           };
         }
-        const lines = freshContent.split("\n");
-        const foundTables = [];
-        let inTable = false;
-        let currentStartLine = -1;
-        let currentTableLines = [];
-        for (let i = 0; i < lines.length; i++) {
-          const trimmed = lines[i].trim();
-          if (trimmed.startsWith("|")) {
-            if (!inTable) {
-              inTable = true;
-              currentStartLine = i;
-              currentTableLines = [lines[i]];
-            } else {
-              currentTableLines.push(lines[i]);
-            }
-          } else {
-            if (inTable) {
-              foundTables.push({
-                startLine: currentStartLine,
-                raw: currentTableLines.join("\n").trim()
-              });
-              inTable = false;
-              currentStartLine = -1;
-              currentTableLines = [];
-            }
-          }
-        }
-        if (inTable) {
-          foundTables.push({
-            startLine: currentStartLine,
-            raw: currentTableLines.join("\n").trim()
-          });
+        const foundTables = findMarkdownTableBlocks(freshContent);
+        if (foundTables.length === 0) {
+          return {
+            success: false,
+            error: mediaAttached ? "Image uploaded, but no target tables were found in the note." : "No target tables were found in the note."
+          };
         }
         const normalizedRaw = (rawTableMarkdown || "").trim();
         const noteChanged = initialContent !== freshContent;
         let targetLine = -1;
         if (!noteChanged) {
-          if (tableIndex >= 0 && tableIndex < foundTables.length) {
-            if (!normalizedRaw || foundTables[tableIndex].raw === normalizedRaw) {
-              targetLine = foundTables[tableIndex].startLine;
+          if (typeof tableIndex === "number" && tableIndex >= 0 && tableIndex < foundTables.length) {
+            const candidate = foundTables[tableIndex];
+            if (!normalizedRaw || candidate.rawTableMarkdown === normalizedRaw || candidate.sourceRaw === normalizedRaw) {
+              targetLine = candidate.startLine;
+            }
+          }
+          if (targetLine === -1 && normalizedRaw) {
+            const matchingIndices = [];
+            for (let idx = 0; idx < foundTables.length; idx++) {
+              if (foundTables[idx].rawTableMarkdown === normalizedRaw || foundTables[idx].sourceRaw === normalizedRaw) {
+                matchingIndices.push(idx);
+              }
+            }
+            if (matchingIndices.length === 1) {
+              targetLine = foundTables[matchingIndices[0]].startLine;
             }
           }
         } else {
           if (normalizedRaw) {
             const matchingTableIndices = [];
             for (let idx = 0; idx < foundTables.length; idx++) {
-              if (foundTables[idx].raw === normalizedRaw) {
+              if (foundTables[idx].rawTableMarkdown === normalizedRaw || foundTables[idx].sourceRaw === normalizedRaw) {
                 matchingTableIndices.push(idx);
               }
             }
@@ -656,25 +1015,19 @@ async function handleEmbedCall(app, actionName, payload = {}) {
             };
           }
         }
-        let updatedContent = "";
-        if (targetLine !== -1) {
-          const newLines = [
-            ...lines.slice(0, targetLine),
-            imageBlock.trim(),
-            ...lines.slice(targetLine)
-          ];
-          updatedContent = newLines.join("\n");
-        } else {
-          if (noteChanged) {
-            return {
-              success: false,
-              error: mediaAttached ? "Image uploaded, but target table could not be verified in modified note. Please retry." : "Note was modified during save. Please retry."
-            };
-          }
-          updatedContent = `${imageBlock.trim()}
-
-${freshContent}`;
+        if (targetLine === -1) {
+          return {
+            success: false,
+            error: mediaAttached ? "Image uploaded, but target table could not be verified in the note. Please retry." : "Target table could not be verified in the note."
+          };
         }
+        const lines = freshContent.replace(/\r\n/g, "\n").split("\n");
+        const newLines = [
+          ...lines.slice(0, targetLine),
+          imageBlock.trim(),
+          ...lines.slice(targetLine)
+        ];
+        const updatedContent = newLines.join("\n");
         try {
           await app.replaceNoteContent({ uuid: targetUUID }, updatedContent);
         } catch (replaceErr) {
@@ -697,7 +1050,8 @@ ${freshContent}`;
         const { noteUUID, noteName, markdownContent } = payload;
         const sourceUUID = noteUUID || (app.settings || {})["Current_Note_UUID [Do not Edit!]"];
         const sourceNote = sourceUUID ? await getNote(app, sourceUUID) : null;
-        const title = (noteName || (sourceNote ? sourceNote.name : "Note")) + " \u2014 Extracted Tables";
+        const safeNoteName = (noteName || (sourceNote ? sourceNote.name : "Note")).replace(/[\r\n]+/g, " ").trim();
+        const title = `${safeNoteName} \u2014 Extracted Tables`;
         let contentToCopy = markdownContent;
         if (!contentToCopy && sourceUUID) {
           const raw = await app.getNoteContent({ uuid: sourceUUID });
@@ -719,18 +1073,44 @@ ${freshContent}`;
         return { success: false, error: "Failed to create new note." };
       }
       case "insertFormulaTableToNote": {
-        const { markdownTable, heading, formulas, xMin, xMax, formulaPoints } = payload;
-        if (!markdownTable || !markdownTable.trim()) {
-          return { success: false, error: "Markdown table content is empty." };
+        const { heading, formulas, xMin, xMax, formulaPoints } = payload;
+        if (!Array.isArray(formulas) || formulas.length === 0) {
+          return { success: false, error: "No formulas provided." };
         }
-        const noteTitle = heading ? heading.startsWith("Math Graph") ? heading : `Math Graph \u2014 ${heading}` : "Math Graph \u2014 Coordinates";
+        const validFormulas = [];
+        for (const f of formulas) {
+          const expr = typeof f === "string" ? f : f?.expression;
+          if (expr && typeof expr === "string" && expr.trim()) {
+            const compiled = compileMathExpression(expr.trim());
+            if (!compiled.error) {
+              validFormulas.push({
+                expression: expr.trim(),
+                name: typeof f === "object" && f.name ? String(f.name).trim() : `f(x) = ${expr.trim()}`
+              });
+            }
+          }
+        }
+        if (validFormulas.length === 0) {
+          return { success: false, error: "No valid mathematical formulas to plot." };
+        }
+        const rawHeading = typeof heading === "string" ? heading.replace(/[\r\n]+/g, " ").trim() : "";
+        const sanitizedHeading = rawHeading.replace(/[`*#_~[\]]/g, "").slice(0, 100).trim();
+        const noteTitle = sanitizedHeading ? sanitizedHeading.startsWith("Math Graph") ? sanitizedHeading : `Math Graph \u2014 ${sanitizedHeading}` : "Math Graph \u2014 Coordinates";
         const newNoteUUID = await app.createNote(noteTitle, ["-reports/-math-graph"]);
         if (!newNoteUUID) {
           return { success: false, error: "Failed to create new note in Amplenote." };
         }
-        const formulaListMd = Array.isArray(formulas) && formulas.length > 0 ? formulas.map((f) => `- **${f.name || f.expression}** (\`${f.expression}\`)`).join("\n") : heading ? `- **${heading}**` : "- *Mathematical Curve*";
-        const domainText = typeof xMin === "number" && typeof xMax === "number" ? `[${xMin}, ${xMax}]` : "[-10, 10]";
-        const resolutionText = formulaPoints ? `${formulaPoints} points` : "21 points";
+        const minX = typeof xMin === "number" && isFinite(xMin) ? xMin : -10;
+        const maxX = typeof xMax === "number" && isFinite(xMax) && xMax > minX ? xMax : 10;
+        const points = typeof formulaPoints === "number" && formulaPoints >= 2 ? Math.min(101, formulaPoints) : 21;
+        const markdownTable = generateFormulaMarkdownTable(validFormulas, { xMin: minX, xMax: maxX, points });
+        const formulaListMd = validFormulas.map((f) => {
+          const safeName = f.name.replace(/[`*#_~[\]]/g, "").trim();
+          const safeExpr = f.expression.replace(/[`\r\n]/g, "").trim();
+          return `- **${safeName}** (\`${safeExpr}\`)`;
+        }).join("\n");
+        const domainText = `[${minX}, ${maxX}]`;
+        const resolutionText = `${points} points`;
         const markdownContent = `# ${noteTitle}
 
 > \u{1F4D0} **Generated by Graph Utility Plugin**  
@@ -740,7 +1120,7 @@ ${freshContent}`;
 
 ## \u{1F4CA} Coordinate Table
 
-${markdownTable.trim()}
+${markdownTable}
 
 ---
 
@@ -765,10 +1145,30 @@ ${formulaListMd}
       }
       case "saveFormulaImageToNote": {
         const { dataUrl, formulaTitle, formulas, xMin, xMax, formulaPoints } = payload;
-        if (!dataUrl) {
-          return { success: false, error: "Missing image data to save." };
+        if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+          return { success: false, error: "Missing or invalid image data to save." };
         }
-        const noteTitle = formulaTitle ? formulaTitle.startsWith("Math Graph") ? formulaTitle : `Math Graph \u2014 ${formulaTitle}` : "Math Graph \u2014 Plot";
+        const validFormulas = [];
+        if (Array.isArray(formulas)) {
+          for (const f of formulas) {
+            const expr = typeof f === "string" ? f : f?.expression;
+            if (expr && typeof expr === "string" && expr.trim()) {
+              const compiled = compileMathExpression(expr.trim());
+              if (!compiled.error) {
+                validFormulas.push({
+                  expression: expr.trim(),
+                  name: typeof f === "object" && f.name ? String(f.name).trim() : `f(x) = ${expr.trim()}`
+                });
+              }
+            }
+          }
+        }
+        if (validFormulas.length === 0) {
+          return { success: false, error: "No valid mathematical formulas to save." };
+        }
+        const rawTitle = typeof formulaTitle === "string" ? formulaTitle.replace(/[\r\n]+/g, " ").trim() : "";
+        const sanitizedTitle = rawTitle.replace(/[`*#_~[\]]/g, "").slice(0, 100).trim();
+        const noteTitle = sanitizedTitle ? sanitizedTitle.startsWith("Math Graph") ? sanitizedTitle : `Math Graph \u2014 ${sanitizedTitle}` : "Math Graph \u2014 Plot";
         const newNoteUUID = await app.createNote(noteTitle, ["-reports/-math-graph"]);
         if (!newNoteUUID) {
           return { success: false, error: "Failed to create new note in Amplenote." };
@@ -788,9 +1188,16 @@ ${formulaListMd}
             console.warn("[GraphUtility] app.attachNoteMedia fallback:", attachErr);
           }
         }
-        const formulaListMd = Array.isArray(formulas) && formulas.length > 0 ? formulas.map((f) => `- **${f.name || f.expression}** (\`${f.expression}\`)`).join("\n") : formulaTitle ? `- **${formulaTitle}**` : "- *Mathematical Curve*";
-        const domainText = typeof xMin === "number" && typeof xMax === "number" ? `[${xMin}, ${xMax}]` : "[-10, 10]";
-        const resolutionText = formulaPoints ? `${formulaPoints} samples` : "200 samples";
+        const formulaListMd = validFormulas.map((f) => {
+          const safeName = f.name.replace(/[`*#_~[\]]/g, "").trim();
+          const safeExpr = f.expression.replace(/[`\r\n]/g, "").trim();
+          return `- **${safeName}** (\`${safeExpr}\`)`;
+        }).join("\n");
+        const minX = typeof xMin === "number" && isFinite(xMin) ? xMin : -10;
+        const maxX = typeof xMax === "number" && isFinite(xMax) && xMax > minX ? xMax : 10;
+        const points = typeof formulaPoints === "number" && formulaPoints >= 2 ? formulaPoints : 200;
+        const domainText = `[${minX}, ${maxX}]`;
+        const resolutionText = `${points} samples`;
         const markdownContent = `# ${noteTitle}
 
 > \u{1F4C8} **Generated by Graph Utility Plugin**  
@@ -2553,12 +2960,36 @@ function buildChartHtml({
           if (/\\s/.test(ch)) { i++; continue; }
           if (/[0-9]/.test(ch) || (ch === "." && i + 1 < len && /[0-9]/.test(raw[i + 1]))) {
             let numStr = "";
+            let hasDot = false;
             while (i < len && (/[0-9]/.test(raw[i]) || raw[i] === ".")) {
-              if (raw[i] === "." && numStr.includes(".")) throw new Error("Invalid floating point number");
+              if (raw[i] === ".") {
+                if (hasDot) throw new Error("Invalid floating point number");
+                hasDot = true;
+              }
               numStr += raw[i];
               i++;
             }
-            tokens.push({ type: "NUMBER", value: parseFloat(numStr) });
+            if (i < len && (raw[i] === "e" || raw[i] === "E")) {
+              const nextChar = raw[i + 1];
+              const nextNextChar = raw[i + 2];
+              const hasSignAndDigit = (nextChar === "+" || nextChar === "-") && nextNextChar && /[0-9]/.test(nextNextChar);
+              const hasDigit = nextChar && /[0-9]/.test(nextChar);
+              if (hasSignAndDigit || hasDigit) {
+                numStr += raw[i];
+                i++;
+                if (raw[i] === "+" || raw[i] === "-") {
+                  numStr += raw[i];
+                  i++;
+                }
+                while (i < len && /[0-9]/.test(raw[i])) {
+                  numStr += raw[i];
+                  i++;
+                }
+              }
+            }
+            const numVal = Number(numStr);
+            if (isNaN(numVal)) throw new Error("Invalid number format '" + numStr + "'");
+            tokens.push({ type: "NUMBER", value: numVal });
             continue;
           }
           if (/[a-zA-Z_]/.test(ch)) {
@@ -2693,8 +3124,8 @@ function buildChartHtml({
               case "+": res = left + right; break;
               case "-": res = left - right; break;
               case "*": res = left * right; break;
-              case "/": if (Math.abs(right) < 1e-15) return null; res = left / right; break;
-              case "%": if (Math.abs(right) < 1e-15) return null; res = left % right; break;
+              case "/": if (right === 0) return null; res = left / right; break;
+              case "%": if (right === 0) return null; res = left % right; break;
               case "^": res = Math.pow(left, right); break;
               default: return null;
             }
@@ -2993,6 +3424,8 @@ function buildChartHtml({
         return {
           id: (tbl.id || 'table') + '-transposed',
           index: tbl.index || 1,
+          sourceIndex: tbl.sourceIndex !== undefined ? tbl.sourceIndex : tbl.index,
+          sourceRawTableMarkdown: tbl.sourceRawTableMarkdown || tbl.rawTableMarkdown,
           heading: tbl.heading ? (tbl.heading + ' (Transposed)') : 'Transposed Table',
           noteName: tbl.noteName || '',
           baseName: baseName + ' (Transposed)',
@@ -3095,21 +3528,21 @@ function buildChartHtml({
               return cells;
             };
 
-            const parsedRows = tableRows.map(parseRow).filter(row => row.some(c => c !== ''));
+            const parsedRows = tableRows.map(parseRow);
             if (parsedRows.length === 0) return;
 
-            // Skip delimiter / placeholder rows
-            const isDelim = r => r.every(c => !c || /^[s:-]*$/.test(c));
+            // Delimiter row MUST contain hyphens (-) in every cell
+            const isDelim = r => r.length > 0 && r.every(c => typeof c === 'string' && /^[\\s:]*-+[\\s:\\-]*$/.test(c.trim()));
             let headerIdx = 0;
-            while (headerIdx < parsedRows.length && isDelim(parsedRows[headerIdx])) {
-              headerIdx++;
+            if (isDelim(parsedRows[0])) {
+              headerIdx = 1;
             }
             if (headerIdx >= parsedRows.length) return;
 
             const rawHeaders = parsedRows[headerIdx];
             const cleanH = (raw, idx) => {
-              const cleaned = (raw || '').trim().replace(/<!--[sS]*?-->/g, '').replace(/[*_~=]/g, '').replaceAll(String.fromCharCode(96), '');
-              return (!cleaned || /^[s:-]+$/.test(cleaned)) ? ('Column ' + (idx + 1)) : cleaned;
+              const cleaned = (raw || '').trim().replace(/<!--[\\s\\S]*?-->/g, '').replace(/[*_~=]/g, '').replaceAll(String.fromCharCode(96), '');
+              return (!cleaned || /^[\\s:\\-]+$/.test(cleaned)) ? ('Column ' + (idx + 1)) : cleaned;
             };
             const headers = rawHeaders.map(cleanH);
 
@@ -3121,7 +3554,7 @@ function buildChartHtml({
             const dataRows = [];
             for (let i = dataStart; i < parsedRows.length; i++) {
               const row = parsedRows[i];
-              if (!isDelim(row) && row.some(c => c !== '')) {
+              if (!isDelim(row)) {
                 dataRows.push(headers.map((_, colIdx) => (row[colIdx] !== undefined ? row[colIdx] : '')));
               }
             }
@@ -4410,11 +4843,13 @@ function buildChartHtml({
           if (window.callAmplenotePlugin) {
             showToast('Saving image above table in note...');
             try {
+              const targetIndex = (currentTable && currentTable.sourceIndex !== undefined) ? (currentTable.sourceIndex - 1) : state.activeTableIndex;
+              const targetRawMd = currentTable ? (currentTable.sourceRawTableMarkdown || currentTable.rawTableMarkdown) : '';
               const res = await window.callAmplenotePlugin('saveImageToNote', {
                 noteUUID: currentNoteUUID,
                 dataUrl: dataUrl,
-                tableIndex: state.activeTableIndex,
-                rawTableMarkdown: currentTable ? currentTable.rawTableMarkdown : ''
+                tableIndex: targetIndex,
+                rawTableMarkdown: targetRawMd
               });
               if (res && res.success) {
                 showToast(res.message || 'Image saved to note!');

@@ -14,16 +14,17 @@ The plugin operates as a hybrid bridge application:
 Handles bidirectional communication between the iframe embed and the Amplenote runtime:
 - `openNote`: Uses `app.navigate` to jump to a note URL.
 - `refreshData`: Fetches the active note via `app.findNote({ uuid })` / `app.getNoteContent`, extracts structured markdown tables, and returns them to the embed.
-- `saveImageToNote`: High-integrity image insertion with strict concurrency and table-identity verification:
-  - **Absolute Table Scanning**: Scans `freshContent` into structured table entries (`foundTables = [{ startLine, raw }]`), preserving exact line numbers and content.
+- `saveImageToNote`: High-integrity image insertion with strict concurrency, table-identity verification, and fail-closed safety:
+  - **Canonical Table Scanning**: Scans `freshContent` using `findMarkdownTableBlocks`, obtaining structured block descriptors (`startLine`, `endLine`, `rawTableMarkdown`, `sourceRaw`).
   - **Dual-Path Concurrency Decision Tree**:
-    - **Unchanged Note (`!noteChanged`)**: Positional structural identity is reliable. Matches table by absolute `tableIndex` and verifies `rawTableMarkdown`, safely handling duplicate identical tables at distinct positions.
+    - **Unchanged Note (`!noteChanged`)**: Positional structural identity is reliable. Matches table by absolute `tableIndex` and verifies `rawTableMarkdown` or `sourceRaw` (accounting for transposed source references).
     - **Changed Note (`noteChanged`)**: Positional identity is discarded. Requires an unambiguous, unique content match (`matchingTableIndices.length === 1`). If zero or multiple duplicate matches exist after a concurrent edit, the operation safely aborts to prevent misplacing the image above the wrong table.
-  - **Media Attachment**: Uploads the PNG chart to Amplenote CDN media (`note.attachMedia`), handles errors distinctly, and uses `app.replaceNoteContent` to inject `![]()` markdown directly above the target table.
+  - **Fail-Closed Guarantee**: If table identity cannot be verified, the operation safely halts with descriptive feedback and never falls back to prepending at the top of the note.
+  - **Media Attachment**: Uploads the PNG chart to Amplenote CDN media (`note.attachMedia`), handles errors distinctly, and uses `app.replaceNoteContent` to inject `\n\\\n\n![]()\n\n\\\n\n` markdown directly above the target table.
 - `copyTablesToNewNote`: Creates a new note via `app.createNote` and populates it with all parsed markdown tables.
-- `saveState` & `getState`: Persists and restores dashboard UI state with **Per-Note State Isolation** (`version: 1, notes: { [noteUUID]: state }`).
-- `insertFormulaTableToNote`: Creates a dedicated new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, populates it with domain metadata and a clean Markdown coordinate table, and navigates to the new note.
-- `saveFormulaImageToNote`: Captures the canvas rendering of the mathematical function plot, creates a new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, uploads the PNG media asset via `note.attachMedia`, embeds the image, and navigates to the new note.
+- `saveState` & `getState`: Persists and restores dashboard UI state with **Per-Note State Isolation** (`version: 1, notes: { [noteUUID]: state }`). Automatically prunes storage to the 50 most recently updated notes to protect Amplenote plugin setting quotas.
+- `insertFormulaTableToNote`: Validates and compiles mathematical expressions server-side via `compileMathExpression()`, generates sanitized titles, creates a dedicated new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, populates it with domain metadata and a clean Markdown coordinate table, and navigates to the new note.
+- `saveFormulaImageToNote`: Validates formula syntax, captures the canvas rendering of the mathematical plot, creates a new note titled `Math Graph — <Formula>` tagged with `-reports/-math-graph`, uploads the PNG media asset via `note.attachMedia`, embeds the image, and navigates to the new note.
 
 ### 2. State & Payload Injection (`lib/features/renderEmbed.js`)
 When the embed is launched, the Host collects the current note's UUID (resolved via `app.findNote`), content, structured tables, and persisted settings.
@@ -31,10 +32,10 @@ These are serialized into a JSON payload object injected into the HTML document 
 
 ### 3. Mathematical Formula Parsing & Evaluation Engine (`lib/utils/mathEvaluator.js`)
 A secure, custom AST-based mathematical evaluation engine completely isolated from `eval()` or `Function()` constructors:
-- **Lexical Tokenizer (`tokenizeMath`)**: Converts raw mathematical expressions (e.g. `2x + sin(3x)`) into structured tokens (`NUMBER`, `VARIABLE`, `CONSTANT`, `FUNCTION`, `OPERATOR`, `LPAREN`, `RPAREN`, `COMMA`).
+- **Lexical Tokenizer (`tokenizeMath`)**: Converts raw mathematical expressions (e.g. `2x + sin(3x)`) into structured tokens (`NUMBER`, `VARIABLE`, `CONSTANT`, `FUNCTION`, `OPERATOR`, `LPAREN`, `RPAREN`, `COMMA`). Supports scientific/exponent notation (`1e3`, `1.2e-4`, `2.5E+6`).
 - **Implicit Multiplication Resolution**: Automatically detects adjacent operand/variable/parentheses pairs (such as `2x`, `3sin(x)`, `(x+1)(x-1)`, `4pi*x`) and injects binary multiplication tokens.
 - **Recursive-Descent AST Parser (`parseMathTokens`)**: Parses token streams according to operator precedence and associativity (`+`/`-` at precedence 1, `*`/`/`/`%` at precedence 2, unary negation and exponentiation `^` right-associative at precedence 3). Builds an Abstract Syntax Tree.
-- **Defensive AST Evaluator (`evaluateAst`)**: Recursively evaluates nodes for any real variable $x$. Safely traps division-by-zero, negative square roots, and infinite asymptotes by returning `null`/`NaN` without crashing the runtime.
+- **Defensive AST Evaluator (`evaluateAst`)**: Recursively evaluates nodes for any real variable $x$. Safely traps division-by-zero (`divisor === 0`), negative square roots, and infinite asymptotes by returning `null`/`NaN` without crashing the runtime.
 - **Multi-Curve Sampler & Markdown Table Generator (`lib/utils/formulaSampler.js`)**:
   - `sampleMultiFormulas`: Samples active formulas across the user-configured domain $[x_{min}, x_{max}]$ with linear steps across $N$ points, producing smooth Chart.js dataset series.
   - `generateFormulaMarkdownTable`: Creates standard Markdown coordinate tables with formatted headers and escaped pipe symbols for seamless Amplenote note insertion.

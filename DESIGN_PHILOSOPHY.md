@@ -49,15 +49,18 @@ Data analytics tools often suffer from sluggishness as tables expand. We treat e
 - **Batched DOM Operations & Event Delegation**: Series controls avoid per-element listener churn and use `DocumentFragment` to eliminate reflow lag.
 - **Linear Transposition**: Transpose operations run in linear time with pre-allocated memory buffers, eliminating stack size limits.
 
-### 7. Integrity First & Conservative Concurrency
+### 7. Integrity First, Fail-Closed Safety & Conservative Concurrency
 When interacting with active notes, data integrity is paramount:
+- **Fail-Closed Protection**: If a target table's identity or location in a note cannot be positively verified, the plugin halts without making any changes. It never guesses or falls back to prepending chart images to the top of user notes.
 - **Never Guess on Mutation**: If a note is modified concurrently while a chart image is being uploaded, the plugin refuses to blindly trust stale table indices or positional guesses.
 - **Explicit Invariant**: Unchanged notes use structural positional matching; modified notes require an unambiguous unique content match. If duplicate identical tables exist after a concurrent shift, the operation safely aborts with transparent user feedback rather than writing above the wrong table.
-- **Input Sanitization**: Persisted states, table indices, and axis selections are bounded and validated against real table dimensions to prevent state corruption.
+- **Bounded Storage Sustainability**: Per-note state maps are capped to the 50 most recently updated notes, safeguarding against setting bloat and Amplenote plugin quota exhaustion over years of usage.
+- **Server-Side Validation**: Generated mathematical tables and plots compile and validate expressions server-side before creating notes, guaranteeing zero malformed notes.
 
 ### 8. Mathematical Formula Modeling & Sandboxed Exploration
 Visualizing data is not limited to pre-existing tables. Mathematical equations ($y = f(x)$), engineering models, scientific curves, and financial formulas are fundamental ways to understand relationships:
 - **Zero-Dependency Safe Parsing**: Mathematical expressions are parsed through an isolated custom AST tokenizer and recursive-descent evaluator — strictly prohibiting unsafe `eval()` or dynamic `Function()` code execution.
+- **Scientific Notation & Real-World Scales**: Full support for scientific notation (`1e3`, `1.2e-4`, `2.5E+6`) ensures engineering, physics, and financial numbers are charted seamlessly.
 - **Continuous Function Sampling & Multi-Curve Plotting**: Enables simultaneous comparison of multiple mathematical curves ($f_1(x), f_2(x)$), configurable domain intervals $[x_{min}, x_{max}]$, and high-density sampling ($20\text{--}600$ points) with tactile step buttons for exploration.
 - **Dedicated Report Publishing**: Generating plots or coordinate tables automatically creates organized notes tagged with `"-reports/-math-graph"`, keeping work spaces tidy, structured, and archived.
 

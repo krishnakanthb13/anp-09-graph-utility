@@ -27,14 +27,15 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
 - 📈 **Interactive Pro Plugins**: Native support for scroll-wheel Zoom, Pan, and auto-formatted Data Labels overlays built directly into the canvas.
 - 🧮 **Mathematical Function Plotter Engine**:
   - Pure, sandboxed mathematical expression parser and evaluator ($y = f(x)$) without `eval()` or `Function()`.
-  - Supports arithmetic (`+`, `-`, `*`, `/`, `^`, `%`), constants (`pi`, `e`, `tau`, `phi`), and 25+ mathematical functions (`sin`, `cos`, `tan`, `log`, `ln`, `exp`, `sqrt`, `cbrt`, `pow`, `abs`, `sinh`, `cosh`, `atan2`, `min`, `max`).
+  - Full support for standard arithmetic (`+`, `-`, `*`, `/`, `^`, `%`), scientific/exponent notation (`1e3`, `1.2e-4`, `2.5E+6`), constants (`pi`, `e`, `tau`, `phi`), and 25+ mathematical functions (`sin`, `cos`, `tan`, `log`, `ln`, `exp`, `sqrt`, `cbrt`, `pow`, `abs`, `sinh`, `cosh`, `atan2`, `min`, `max`).
   - Supports implicit multiplication (`2x`, `3sin(x)`, `(x+1)(x-1)`, `4pi*x`).
   - Multi-function simultaneous plotting with individual color coding and active toggles.
   - Interactive preset curves (Sine Wave, Damped Oscillator, Sigmoid, Gaussian Bell, Sinc, Polynomial, Butterfly, Resonance).
   - Configurable domain range $[x_{min}, x_{max}]$ with separate step arrows and sampling resolution ($2\text{--}2000$ points).
-  - 1-click **Save Formula Plot to Note** and **Insert Coordinate Table to Note**: automatically creates dedicated Amplenote notes named `Math Graph — <Expression>` tagged with `-reports/-math-graph` with rich Markdown metadata.
-- 🗂️ **Heading-Aware Table Navigation**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`).
-- 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers, escaped pipes (`\|`), and preserved column structure without modifying source markdown.
+  - 1-click **Save Formula Plot to Note** and **Insert Coordinate Table to Note**: automatically validates formulas server-side and creates dedicated Amplenote notes named `Math Graph — <Expression>` tagged with `-reports/-math-graph` with rich Markdown metadata.
+- 🗂️ **Heading-Aware Table Navigation & Code Fence Safety**: Tables are automatically indexed with their preceding note headings (e.g. `Note > Financials > Table 1 (4 cols × 12 rows)`). Fenced code blocks (```` ``` ```` / `~~~`) are safely ignored so code examples are never charted.
+- 🔁 **Rows ⇄ Cols In-Memory Transposition**: Instantly transpose markdown tables on the fly with intact headers, escaped pipes (`\|`), and preserved column structure without modifying source markdown. Chart image saves from transposed tables automatically target the original source table in your note.
+- 🛡️ **Fail-Closed Document Integrity**: Strict verification prevents accidental document changes. Chart image saves never fall back to prepending at the top of notes if table identity cannot be verified.
 - 💾 **Mode-Aware Export & Publishing Engine**:
   - Automatically switches the **Export Dropdown** options based on whether you are in **Tables** mode or **Math Formula** mode.
   - **Tables Mode**: Download Interactive Charts HTML, Download all Tables (MD/CSV), Copy all Tables to a new Note, Save Image Above Table in Note, Copy Chart to Clipboard, Download PNG.

@@ -75,9 +75,19 @@ describe("mathEvaluator", () => {
   });
 
   describe("Defensive Edge Cases & Error Handling", () => {
-    test("returns null for division by zero and domain violations", () => {
+    test("supports scientific notation in formulas", () => {
+      expect(evaluateMathExpression("1e3", 0)).toBe(1000);
+      expect(evaluateMathExpression("1.2e-4", 0)).toBeCloseTo(0.00012);
+      expect(evaluateMathExpression("2.5E+3", 0)).toBe(2500);
+      expect(evaluateMathExpression("1e-10 * 1e10", 0)).toBeCloseTo(1);
+      expect(evaluateMathExpression("x * 1e2", 5)).toBe(500);
+    });
+
+    test("handles tiny non-zero divisors and division by zero properly", () => {
       expect(evaluateMathExpression("1 / 0", 0)).toBeNull();
       expect(evaluateMathExpression("1 / x", 0)).toBeNull();
+      expect(evaluateMathExpression("1e-16 / 1e-16", 0)).toBeCloseTo(1);
+      expect(evaluateMathExpression("10 / 1e-5", 0)).toBeCloseTo(1000000);
       expect(evaluateMathExpression("sqrt(-4)", 0)).toBeNull();
       expect(evaluateMathExpression("ln(-1)", 0)).toBeNull();
     });
