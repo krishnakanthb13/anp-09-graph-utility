@@ -1732,16 +1732,19 @@ function buildChartHtml({
       flex: 1;
       padding: 24px;
       position: relative;
-      overflow: hidden;
+      overflow: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      min-width: 0;
+      box-sizing: border-box;
     }
 
     .canvas-wrapper {
-      width: 100%;
-      height: 100%;
       position: relative;
       background-color: var(--bg-surface-glass);
       border: 1px solid var(--border-color);
@@ -1749,6 +1752,38 @@ function buildChartHtml({
       padding: 20px;
       box-shadow: var(--shadow-lg);
       backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      box-sizing: border-box;
+      transition: max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                  max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                  width 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                  height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .canvas-wrapper.is-stretched {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      aspect-ratio: auto;
+    }
+
+    .canvas-wrapper.is-standard {
+      width: 100%;
+      height: 100%;
+      max-width: min(960px, 100%);
+      max-height: min(580px, 100%);
+      aspect-ratio: 16 / 10;
+      margin: auto;
+    }
+
+    .canvas-wrapper.is-standard.is-radial {
+      max-width: min(580px, 100%);
+      max-height: min(580px, 100%);
+      aspect-ratio: 1 / 1;
     }
 
     .canvas-toolbar {
@@ -1778,6 +1813,12 @@ function buildChartHtml({
 
     .canvas-toolbar-btn:hover {
       color: var(--text-primary);
+      border-color: var(--accent-primary);
+      background: var(--accent-badge);
+    }
+
+    .canvas-toolbar-btn.active {
+      color: var(--accent-primary);
       border-color: var(--accent-primary);
       background: var(--accent-badge);
     }
@@ -1830,11 +1871,15 @@ function buildChartHtml({
       display: flex;
       flex-direction: column;
       gap: 6px;
-      transition: border-color 0.15s ease;
+      transition: all 0.15s ease;
     }
 
     .formula-card:hover {
       border-color: var(--border-hover);
+    }
+
+    .formula-card.is-inactive {
+      opacity: 0.65;
     }
 
     .formula-card.has-error {
@@ -1845,15 +1890,32 @@ function buildChartHtml({
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
+    }
+
+    .formula-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      cursor: pointer;
+      user-select: none;
+      flex: 1;
     }
 
     .formula-color-indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
       flex-shrink: 0;
-      box-shadow: 0 0 4px rgba(0,0,0,0.2);
+      pointer-events: none;
+      display: inline-block;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .series-color-picker-wrapper:hover .formula-color-indicator {
+      transform: scale(1.25);
+      box-shadow: 0 0 8px var(--accent-glow);
     }
 
     .formula-error-text {
@@ -2069,6 +2131,65 @@ function buildChartHtml({
       background-color: #ffffff;
     }
 
+    /* Collapsible Sections */
+    .collapsible-section {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-glass);
+      overflow: hidden;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .collapsible-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 11px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .collapsible-header:hover {
+      background-color: var(--bg-surface-elevated);
+      color: var(--accent-primary);
+    }
+
+    .collapsible-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .chevron-icon {
+      transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .collapsible-section.collapsed .chevron-icon {
+      transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+      padding: 2px 11px 10px 11px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .collapsible-section.collapsed .collapsible-content {
+      display: none;
+    }
+
     /* Series Checkbox List */
     .series-list {
       display: flex;
@@ -2102,8 +2223,8 @@ function buildChartHtml({
       border: 1px solid var(--border-color);
       border-radius: var(--radius-sm);
       font-size: 12px;
-      cursor: pointer;
       transition: all 0.15s ease;
+      position: relative;
     }
 
     .series-item:hover {
@@ -2113,13 +2234,99 @@ function buildChartHtml({
     .series-item input[type="checkbox"] {
       accent-color: var(--accent-primary);
       cursor: pointer;
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    .series-title {
+      flex: 1;
+      cursor: pointer;
+      user-select: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .series-item-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .reorder-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 9px;
+      cursor: pointer;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .reorder-btn:hover:not(:disabled) {
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      border-color: var(--border-color);
+    }
+
+    .reorder-btn:disabled {
+      opacity: 0.25;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .series-color-picker-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+    }
+
+    .series-color-input,
+    .formula-color-input {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 0 !important;
+      height: 0 !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+      border: 0 !important;
+      outline: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      clip: rect(0, 0, 0, 0) !important;
+      overflow: hidden !important;
     }
 
     .series-color-swatch {
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
       border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
       flex-shrink: 0;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      cursor: pointer;
+      display: inline-block;
+      box-sizing: border-box;
+    }
+
+    .series-color-picker-wrapper:hover .series-color-swatch {
+      transform: scale(1.25);
+      box-shadow: 0 0 8px var(--accent-glow);
     }
 
     /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
@@ -2682,11 +2889,15 @@ function buildChartHtml({
 
       <!-- Center Chart Canvas -->
       <div class="chart-container">
-        <div class="canvas-wrapper">
+        <div class="canvas-wrapper is-standard">
           <div class="canvas-toolbar">
             <button id="resetZoomBtn" class="canvas-toolbar-btn" title="Reset Zoom / Pan" style="display: none; color: var(--accent-primary, #6366f1);">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
               Reset Zoom
+            </button>
+            <button id="toggleGraphFitBtn" class="canvas-toolbar-btn" title="Toggle between Standard Measured and Stretched Size">
+              <svg id="toggleGraphFitIcon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              <span id="graphFitLabel">Standard Size</span>
             </button>
             <button id="replayAnimationBtn" class="canvas-toolbar-btn" title="Replay Animation">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
@@ -2815,44 +3026,65 @@ function buildChartHtml({
           </select>
         </div>
 
-        <!-- Visual Display Options -->
-        <div class="form-group" style="margin-top: 20px;">
-          <span class="form-label">Display Options</span>
-          <label class="toggle-row">
-            <span>Show Data Labels</span>
-            <div class="switch">
-              <input type="checkbox" id="showDataLabelsToggle">
-              <span class="slider"></span>
+        <!-- Visual Display Options (Collapsible) -->
+        <div class="form-group collapsible-section" id="displayOptionsSection" style="margin-top: 20px;">
+          <button type="button" id="toggleDisplayOptionsBtn" class="collapsible-header" aria-expanded="true">
+            <div class="collapsible-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="collapsible-icon">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>Display Options</span>
             </div>
-          </label>
-          <label class="toggle-row">
-            <span>Smooth Curves</span>
-            <div class="switch">
-              <input type="checkbox" id="smoothCurvesToggle" checked>
-              <span class="slider"></span>
-            </div>
-          </label>
-          <label class="toggle-row">
-            <span>Fill Area</span>
-            <div class="switch">
-              <input type="checkbox" id="fillAreaToggle">
-              <span class="slider"></span>
-            </div>
-          </label>
-          <label class="toggle-row">
-            <span>Show Grid Lines</span>
-            <div class="switch">
-              <input type="checkbox" id="showGridToggle" checked>
-              <span class="slider"></span>
-            </div>
-          </label>
-          <label class="toggle-row">
-            <span>Show Legend</span>
-            <div class="switch">
-              <input type="checkbox" id="showLegendToggle" checked>
-              <span class="slider"></span>
-            </div>
-          </label>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-icon">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          
+          <div id="displayOptionsContent" class="collapsible-content">
+            <label class="toggle-row">
+              <span>Stretch to Fill Space</span>
+              <div class="switch">
+                <input type="checkbox" id="stretchGraphToggle">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <span>Show Data Labels</span>
+              <div class="switch">
+                <input type="checkbox" id="showDataLabelsToggle">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <span>Smooth Curves</span>
+              <div class="switch">
+                <input type="checkbox" id="smoothCurvesToggle" checked>
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <span>Fill Area</span>
+              <div class="switch">
+                <input type="checkbox" id="fillAreaToggle">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <span>Show Grid Lines</span>
+              <div class="switch">
+                <input type="checkbox" id="showGridToggle" checked>
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <span>Show Legend</span>
+              <div class="switch">
+                <input type="checkbox" id="showLegendToggle" checked>
+                <span class="slider"></span>
+              </div>
+            </label>
+          </div>
         </div>
       </div>
     </aside>
@@ -3235,6 +3467,7 @@ function buildChartHtml({
         chartType: 'line',
         selectedXIndex: 0,
         selectedYIndices: [],
+        graphFit: 'standard', // 'standard' | 'stretched'
         theme: 'dark',
         palette: 'modern',
         easing: 'easeInOutQuart',
@@ -3246,6 +3479,9 @@ function buildChartHtml({
         legendPos: 'top',
         leftPanelCollapsed: false,
         rightPanelCollapsed: false,
+        displayOptionsCollapsed: false,
+        customSeriesColors: {}, // { [columnIndexOrName]: hexColor }
+        seriesOrder: [], // Custom ordering of available Y series column indices
         // Formula Plotter settings
         formulas: [],
         xMin: -10,
@@ -3343,14 +3579,26 @@ function buildChartHtml({
             if (typeof source.showGrid === 'boolean') state.showGrid = source.showGrid;
             if (typeof source.showLegend === 'boolean') state.showLegend = source.showLegend;
             if (typeof source.showDataLabels === 'boolean') state.showDataLabels = source.showDataLabels;
+            if (source.graphFit === 'stretched' || source.graphFit === 'standard') {
+              state.graphFit = source.graphFit;
+            } else if (typeof source.stretchGraph === 'boolean') {
+              state.graphFit = source.stretchGraph ? 'stretched' : 'standard';
+            }
             if (source.legendPos) state.legendPos = source.legendPos;
             if (Number.isInteger(source.activeTableIndex) && source.activeTableIndex >= 0) state.activeTableIndex = source.activeTableIndex;
             if (Number.isInteger(source.selectedXIndex) && source.selectedXIndex >= -1) state.selectedXIndex = source.selectedXIndex;
             if (Array.isArray(source.selectedYIndices)) {
               state.selectedYIndices = source.selectedYIndices.filter(idx => Number.isInteger(idx) && idx >= 0);
             }
+            if (Array.isArray(source.seriesOrder)) {
+              state.seriesOrder = source.seriesOrder.filter(idx => Number.isInteger(idx) && idx >= 0);
+            }
             if (typeof source.leftPanelCollapsed === 'boolean') state.leftPanelCollapsed = source.leftPanelCollapsed;
             if (typeof source.rightPanelCollapsed === 'boolean') state.rightPanelCollapsed = source.rightPanelCollapsed;
+            if (typeof source.displayOptionsCollapsed === 'boolean') state.displayOptionsCollapsed = source.displayOptionsCollapsed;
+            if (source.customSeriesColors && typeof source.customSeriesColors === 'object') {
+              state.customSeriesColors = { ...source.customSeriesColors };
+            }
             if (source.sourceMode === 'tables' || source.sourceMode === 'formulas') state.sourceMode = source.sourceMode;
             if (Array.isArray(source.formulas)) state.formulas = source.formulas;
             if (typeof source.xMin === 'number' && Number.isFinite(source.xMin)) state.xMin = source.xMin;
@@ -3381,6 +3629,69 @@ function buildChartHtml({
         currentThemeIndex = (currentThemeIndex + 1) % THEMES.length;
         applyTheme(THEMES[currentThemeIndex]);
         showToast('Theme: ' + THEMES[currentThemeIndex].toUpperCase());
+      }
+
+      // Graph Dimensions / Viewport Fit Mode (Stretched vs Standard Measured Size)
+      function updateGraphFitUI() {
+        const wrapper = document.querySelector('.canvas-wrapper');
+        const isStretched = state.graphFit === 'stretched';
+        const isPieOrDonutOrRadar = ['pie', 'doughnut', 'polarArea', 'radar'].includes(state.chartType) && state.sourceMode === 'tables';
+
+        if (wrapper) {
+          wrapper.classList.toggle('is-stretched', isStretched);
+          wrapper.classList.toggle('is-standard', !isStretched);
+          wrapper.classList.toggle('is-radial', !isStretched && isPieOrDonutOrRadar);
+        }
+
+        const fitLabel = document.getElementById('graphFitLabel');
+        if (fitLabel) {
+          fitLabel.textContent = isStretched ? 'Stretched' : 'Standard Size';
+        }
+
+        const fitBtn = document.getElementById('toggleGraphFitBtn');
+        if (fitBtn) {
+          fitBtn.title = isStretched ? 'Click to switch to Standard Measured Size' : 'Click to stretch to Fill Space';
+          if (isStretched) {
+            fitBtn.classList.add('active');
+          } else {
+            fitBtn.classList.remove('active');
+          }
+        }
+
+        const fitIcon = document.getElementById('toggleGraphFitIcon');
+        if (fitIcon) {
+          if (isStretched) {
+            fitIcon.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
+          } else {
+            fitIcon.innerHTML = '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+          }
+        }
+
+        const stretchToggle = document.getElementById('stretchGraphToggle');
+        if (stretchToggle) {
+          stretchToggle.checked = isStretched;
+        }
+      }
+
+      function toggleGraphFit() {
+        state.graphFit = (state.graphFit === 'stretched') ? 'standard' : 'stretched';
+        updateGraphFitUI();
+        if (chartInstance) {
+          chartInstance.resize();
+        }
+        persistState();
+        showToast(state.graphFit === 'stretched' ? 'Graph: Stretched (Fill Space)' : 'Graph: Standard Measured Size');
+      }
+
+      function updateDisplayOptionsCollapseUI() {
+        const section = document.getElementById('displayOptionsSection');
+        const btn = document.getElementById('toggleDisplayOptionsBtn');
+        if (!section) return;
+        const isCollapsed = !!state.displayOptionsCollapsed;
+        section.classList.toggle('collapsed', isCollapsed);
+        if (btn) {
+          btn.setAttribute('aria-expanded', !isCollapsed);
+        }
       }
 
       // Parse and extract table data from active content
@@ -3660,30 +3971,101 @@ function buildChartHtml({
             selectAllBtn.textContent = (isAll && availableIndices.length > 1) ? 'Select #1' : 'Select All';
           }
 
-          const docFrag = document.createDocumentFragment();
-          currentTable.headers.forEach((h, idx) => {
-            if (idx === state.selectedXIndex && state.selectedXIndex !== -1) return;
+          // Ensure all available indices are present in state.seriesOrder
+          if (!Array.isArray(state.seriesOrder) || state.seriesOrder.length === 0) {
+            state.seriesOrder = [...availableIndices];
+          } else {
+            const valid = state.seriesOrder.filter(idx => availableIndices.includes(idx));
+            availableIndices.forEach(idx => {
+              if (!valid.includes(idx)) valid.push(idx);
+            });
+            state.seriesOrder = valid;
+          }
 
-            const item = document.createElement('label');
+          const orderedIndices = state.seriesOrder;
+
+          const docFrag = document.createDocumentFragment();
+          orderedIndices.forEach((idx, pos) => {
+            if (idx === state.selectedXIndex && state.selectedXIndex !== -1) return;
+            const h = currentTable.headers[idx];
+
+            const item = document.createElement('div');
             item.className = 'series-item';
             
+            const cbId = 'series_cb_' + idx;
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
+            checkbox.id = cbId;
             checkbox.value = idx;
             checkbox.className = 'series-checkbox';
             checkbox.checked = state.selectedYIndices.includes(idx);
 
+            const customColor = (state.customSeriesColors && (state.customSeriesColors[idx] || (h && state.customSeriesColors[h])));
+            const color = customColor || palette[idx % palette.length];
+
+            const colorWrapper = document.createElement('div');
+            colorWrapper.className = 'series-color-picker-wrapper';
+            colorWrapper.title = 'Click to customize series color';
+
+            const colorInput = document.createElement('input');
+            colorInput.type = 'color';
+            colorInput.className = 'series-color-input';
+            colorInput.dataset.colIdx = idx;
+            colorInput.value = (color.length === 7 && color.startsWith('#')) ? color : (color.startsWith('#') ? color.slice(0, 7) : '#6366f1');
+            colorInput.style.cssText = 'position: absolute !important; width: 0 !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; border: 0 !important; margin: 0 !important; padding: 0 !important;';
+
             const swatch = document.createElement('span');
             swatch.className = 'series-color-swatch';
-            const color = palette[idx % palette.length];
             swatch.style.backgroundColor = color;
 
-            const text = document.createElement('span');
-            text.textContent = h || ('Series ' + (idx + 1));
+            colorWrapper.appendChild(colorInput);
+            colorWrapper.appendChild(swatch);
+
+            colorWrapper.addEventListener('click', (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              try {
+                if (typeof colorInput.showPicker === 'function') {
+                  colorInput.showPicker();
+                } else {
+                  colorInput.click();
+                }
+              } catch (err) {
+                colorInput.click();
+              }
+            });
+
+            const textLabel = document.createElement('label');
+            textLabel.htmlFor = cbId;
+            textLabel.className = 'series-title';
+            textLabel.textContent = h || ('Series ' + (idx + 1));
+
+            const actions = document.createElement('div');
+            actions.className = 'series-item-actions';
+
+            const upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'reorder-btn move-series-up-btn';
+            upBtn.dataset.idx = idx;
+            upBtn.title = 'Move Series Up';
+            upBtn.textContent = '\u25B2';
+            if (pos === 0) upBtn.disabled = true;
+
+            const downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'reorder-btn move-series-down-btn';
+            downBtn.dataset.idx = idx;
+            downBtn.title = 'Move Series Down';
+            downBtn.textContent = '\u25BC';
+            if (pos === orderedIndices.length - 1) downBtn.disabled = true;
+
+            actions.appendChild(upBtn);
+            actions.appendChild(downBtn);
 
             item.appendChild(checkbox);
-            item.appendChild(swatch);
-            item.appendChild(text);
+            item.appendChild(colorWrapper);
+            item.appendChild(textLabel);
+            item.appendChild(actions);
             docFrag.appendChild(item);
           });
           yContainer.appendChild(docFrag);
@@ -3827,36 +4209,66 @@ function buildChartHtml({
 
         state.formulas.forEach((formula, idx) => {
           const card = document.createElement('div');
-          card.className = 'formula-card';
+          card.className = 'formula-card' + (formula.active === false ? ' is-inactive' : '');
           card.dataset.id = formula.id;
 
           const col = formula.color || palette[idx % palette.length];
+          const hexCol = (col.length === 7 && col.startsWith('#')) ? col : (col.startsWith('#') ? col.slice(0, 7) : '#6366f1');
           const compiled = compileMathExpression(formula.expression);
 
           if (compiled.error && formula.expression.trim().length > 0) {
             card.classList.add('has-error');
           }
 
-          const deleteBtnHtml = '<button class="btn btn-icon delete-formula-btn" data-id="' + formula.id + '" style="font-size: 10px; padding: 1px 4px; color: #ef4444;" title="Delete Function">\u2715</button>';
+          const upDisabled = idx === 0 ? 'disabled' : '';
+          const downDisabled = idx === state.formulas.length - 1 ? 'disabled' : '';
+          const actionsHtml = 
+            '<div class="series-item-actions">' +
+              '<button type="button" class="reorder-btn move-formula-up-btn" data-id="' + formula.id + '" title="Move Function Up" ' + upDisabled + '>\u25B2</button>' +
+              '<button type="button" class="reorder-btn move-formula-down-btn" data-id="' + formula.id + '" title="Move Function Down" ' + downDisabled + '>\u25BC</button>' +
+              '<button type="button" class="btn btn-icon delete-formula-btn" data-id="' + formula.id + '" style="font-size: 10px; padding: 1px 4px; color: #ef4444;" title="Delete Function">\u2715</button>' +
+            '</div>';
 
           let errorSpanHtml = '';
           if (compiled.error && formula.expression.trim().length > 0) {
             errorSpanHtml = '<span class="formula-error-text">' + escapeHTML(compiled.error) + '</span>';
           }
 
+          const cbId = 'formula_cb_' + formula.id;
           card.innerHTML = 
             '<div class="formula-card-header">' +
-              '<div style="display: flex; align-items: center; gap: 6px; flex: 1;">' +
-                '<input type="checkbox" class="formula-active-toggle" data-id="' + formula.id + '" ' + (formula.active !== false ? 'checked' : '') + ' style="cursor: pointer;">' +
-                '<span class="formula-color-indicator" style="background-color: ' + col + ';"></span>' +
-                '<span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">f' + (idx + 1) + '(x)</span>' +
+              '<div style="display: flex; align-items: center; gap: 8px; flex: 1;">' +
+                '<input type="checkbox" id="' + cbId + '" class="formula-active-toggle" data-id="' + formula.id + '" ' + (formula.active !== false ? 'checked' : '') + ' style="accent-color: var(--accent-primary); cursor: pointer; margin: 0; flex-shrink: 0;">' +
+                '<div class="series-color-picker-wrapper" title="Click to customize curve color">' +
+                  '<input type="color" class="formula-color-input" data-id="' + formula.id + '" value="' + hexCol + '" style="position: absolute !important; width: 0 !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; border: 0 !important; margin: 0 !important; padding: 0 !important;">' +
+                  '<span class="series-color-swatch formula-color-indicator" style="background-color: ' + col + ';"></span>' +
+                '</div>' +
+                '<label for="' + cbId + '" class="formula-label">f' + (idx + 1) + '(x)</label>' +
               '</div>' +
-              deleteBtnHtml +
+              actionsHtml +
             '</div>' +
             '<div style="display: flex; flex-direction: column; gap: 4px;">' +
               '<input type="text" class="input formula-expr-input" data-id="' + formula.id + '" value="' + escapeHTML(formula.expression) + '" placeholder="e.g. sin(x) * x" style="padding: 6px 8px; font-size: 12px; font-family: monospace;">' +
               errorSpanHtml +
             '</div>';
+
+          const colorWrapper = card.querySelector('.series-color-picker-wrapper');
+          const colorInput = card.querySelector('.formula-color-input');
+          if (colorWrapper && colorInput) {
+            colorWrapper.addEventListener('click', (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              try {
+                if (typeof colorInput.showPicker === 'function') {
+                  colorInput.showPicker();
+                } else {
+                  colorInput.click();
+                }
+              } catch (err) {
+                colorInput.click();
+              }
+            });
+          }
 
           frag.appendChild(card);
         });
@@ -3911,6 +4323,8 @@ function buildChartHtml({
 
         const canvas = document.getElementById('mainChart');
         if (!canvas) return;
+
+        updateGraphFitUI();
 
         // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
         // FORMULA PLOTTER RENDERING MODE
@@ -4129,7 +4543,8 @@ function buildChartHtml({
         if (isPareto) {
           const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
           const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
-          const color = palette[targetColIdx % palette.length];
+          const customColor = (state.customSeriesColors && (state.customSeriesColors[targetColIdx] || (seriesName && state.customSeriesColors[seriesName])));
+          const color = customColor || palette[targetColIdx % palette.length];
 
           const paired = currentTable.dataRows.map((row, rIdx) => {
             const rawLabel = state.selectedXIndex === -1 ? ('Item ' + (rIdx + 1)) : (row[state.selectedXIndex] || ('Item ' + (rIdx + 1)));
@@ -4176,7 +4591,8 @@ function buildChartHtml({
         else if (isHistogram) {
           const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
           const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
-          const color = palette[targetColIdx % palette.length];
+          const customColor = (state.customSeriesColors && (state.customSeriesColors[targetColIdx] || (seriesName && state.customSeriesColors[seriesName])));
+          const color = customColor || palette[targetColIdx % palette.length];
 
           const nums = currentTable.dataRows
             .map(row => parseNumericCell(row[targetColIdx]))
@@ -4224,6 +4640,8 @@ function buildChartHtml({
         else if (isWaterfall) {
           const targetColIdx = (state.selectedYIndices && state.selectedYIndices.length > 0) ? state.selectedYIndices[0] : 0;
           const seriesName = currentTable.headers[targetColIdx] || ('Series ' + (targetColIdx + 1));
+          const customColor = (state.customSeriesColors && (state.customSeriesColors[targetColIdx] || (seriesName && state.customSeriesColors[seriesName])));
+          const baseColor = customColor || '#6366f1';
           
           let running = 0;
           const floatingBars = [];
@@ -4238,8 +4656,8 @@ function buildChartHtml({
 
             if (floatingBars.length === 0) {
               floatingBars.push([0, num]);
-              barColors.push('#6366f1cc');
-              borderColors.push('#6366f1');
+              barColors.push(baseColor + 'cc');
+              borderColors.push(baseColor);
             } else if (num >= 0) {
               floatingBars.push([prev, running]);
               barColors.push('#10b981cc'); // Positive change: Green
@@ -4262,9 +4680,14 @@ function buildChartHtml({
         }
         // 4. Standard and Multi-Series Datasets
         else {
-          datasets = (state.selectedYIndices || []).map((colIdx, sIdx) => {
+          const orderedYIndices = (state.seriesOrder && state.seriesOrder.length > 0)
+            ? state.seriesOrder.filter(idx => (state.selectedYIndices || []).includes(idx))
+            : (state.selectedYIndices || []);
+
+          datasets = orderedYIndices.map((colIdx, sIdx) => {
             const seriesName = currentTable.headers[colIdx] || ('Series ' + (colIdx + 1));
-            const color = palette[colIdx % palette.length];
+            const customColor = (state.customSeriesColors && (state.customSeriesColors[colIdx] || (seriesName && state.customSeriesColors[seriesName])));
+            const color = customColor || palette[colIdx % palette.length];
             const rawValues = currentTable.dataRows.map((row) => parseNumericCell(row[colIdx]));
 
             if (isScatter) {
@@ -4318,8 +4741,8 @@ function buildChartHtml({
               label: seriesName,
               data: rawValues,
               backgroundColor: isPieOrDonut
-                ? labels.map((_, i) => palette[i % palette.length])
-                : (state.fillArea ? color + '33' : color),
+                ? labels.map((l, i) => (state.customSeriesColors && (state.customSeriesColors[i] || (l && state.customSeriesColors[l]))) || palette[i % palette.length])
+                : (state.chartType === 'bar' ? color + 'cc' : (state.fillArea ? color + '33' : color)),
               borderColor: isPieOrDonut
                 ? (isDark ? '#0d1117' : '#ffffff')
                 : color,
@@ -4579,6 +5002,57 @@ function buildChartHtml({
           }
         });
 
+        // Event delegation for custom series color pickers
+        function handleSeriesColorUpdate(e) {
+          if (e.target && e.target.classList.contains('series-color-input')) {
+            const colIdx = parseInt(e.target.dataset.colIdx, 10);
+            const newColor = e.target.value;
+            if (!state.customSeriesColors) state.customSeriesColors = {};
+            state.customSeriesColors[colIdx] = newColor;
+            const currentTable = parsedTables[state.activeTableIndex];
+            if (currentTable && currentTable.headers[colIdx]) {
+              state.customSeriesColors[currentTable.headers[colIdx]] = newColor;
+            }
+            const swatch = e.target.parentElement?.querySelector('.series-color-swatch');
+            if (swatch) swatch.style.backgroundColor = newColor;
+            renderChart();
+            persistState();
+          }
+        }
+        yContainer?.addEventListener('input', handleSeriesColorUpdate);
+        yContainer?.addEventListener('change', handleSeriesColorUpdate);
+
+        // Event delegation for series reorder (Move Up / Move Down)
+        yContainer?.addEventListener('click', (e) => {
+          const upBtn = e.target.closest('.move-series-up-btn');
+          const downBtn = e.target.closest('.move-series-down-btn');
+          if (upBtn && !upBtn.disabled) {
+            e.stopPropagation();
+            e.preventDefault();
+            const idx = parseInt(upBtn.dataset.idx, 10);
+            const pos = (state.seriesOrder || []).indexOf(idx);
+            if (pos > 0) {
+              const temp = state.seriesOrder[pos];
+              state.seriesOrder[pos] = state.seriesOrder[pos - 1];
+              state.seriesOrder[pos - 1] = temp;
+              updateTableMappingControls();
+              persistState();
+            }
+          } else if (downBtn && !downBtn.disabled) {
+            e.stopPropagation();
+            e.preventDefault();
+            const idx = parseInt(downBtn.dataset.idx, 10);
+            const pos = (state.seriesOrder || []).indexOf(idx);
+            if (pos >= 0 && pos < state.seriesOrder.length - 1) {
+              const temp = state.seriesOrder[pos];
+              state.seriesOrder[pos] = state.seriesOrder[pos + 1];
+              state.seriesOrder[pos + 1] = temp;
+              updateTableMappingControls();
+              persistState();
+            }
+          }
+        });
+
         // Chart Type Selector
         const chartSelect = document.getElementById('chartTypeSelect');
         if (chartSelect) {
@@ -4682,6 +5156,20 @@ function buildChartHtml({
         }
 
         // Visual Display Options
+        const stretchToggle = document.getElementById('stretchGraphToggle');
+        if (stretchToggle) {
+          stretchToggle.checked = (state.graphFit === 'stretched');
+          stretchToggle.addEventListener('change', (e) => {
+            state.graphFit = e.target.checked ? 'stretched' : 'standard';
+            updateGraphFitUI();
+            if (chartInstance) {
+              chartInstance.resize();
+            }
+            persistState();
+            showToast(state.graphFit === 'stretched' ? 'Graph: Stretched (Fill Space)' : 'Graph: Standard Measured Size');
+          });
+        }
+
         const smoothToggle = document.getElementById('smoothCurvesToggle');
         if (smoothToggle) {
           smoothToggle.checked = state.smoothCurves;
@@ -4741,6 +5229,16 @@ function buildChartHtml({
             persistState();
           });
         }
+
+        // Collapsible Display Options
+        document.getElementById('toggleDisplayOptionsBtn')?.addEventListener('click', () => {
+          state.displayOptionsCollapsed = !state.displayOptionsCollapsed;
+          updateDisplayOptionsCollapseUI();
+          persistState();
+        });
+
+        // Canvas Toolbar Controls
+        document.getElementById('toggleGraphFitBtn')?.addEventListener('click', toggleGraphFit);
 
         // Reset Zoom Button
         document.getElementById('resetZoomBtn')?.addEventListener('click', () => {
@@ -5178,6 +5676,16 @@ function buildChartHtml({
                   }
                 }, 150);
               }
+            } else if (e.target.classList.contains('formula-color-input')) {
+              const id = e.target.dataset.id;
+              const targetFormula = (state.formulas || []).find(f => f.id === id);
+              if (targetFormula) {
+                targetFormula.color = e.target.value;
+                const indicator = e.target.parentElement?.querySelector('.formula-color-indicator');
+                if (indicator) indicator.style.backgroundColor = targetFormula.color;
+                renderChart();
+                persistState();
+              }
             }
           });
 
@@ -5187,6 +5695,20 @@ function buildChartHtml({
               const targetFormula = (state.formulas || []).find(f => f.id === id);
               if (targetFormula) {
                 targetFormula.active = e.target.checked;
+                const card = e.target.closest('.formula-card');
+                if (card) {
+                  card.classList.toggle('is-inactive', !targetFormula.active);
+                }
+                renderChart();
+                persistState();
+              }
+            } else if (e.target.classList.contains('formula-color-input')) {
+              const id = e.target.dataset.id;
+              const targetFormula = (state.formulas || []).find(f => f.id === id);
+              if (targetFormula) {
+                targetFormula.color = e.target.value;
+                const indicator = e.target.parentElement?.querySelector('.formula-color-indicator');
+                if (indicator) indicator.style.backgroundColor = targetFormula.color;
                 renderChart();
                 persistState();
               }
@@ -5194,8 +5716,32 @@ function buildChartHtml({
           });
 
           formulaContainer.addEventListener('click', (e) => {
+            const upBtn = e.target.closest('.move-formula-up-btn');
+            const downBtn = e.target.closest('.move-formula-down-btn');
             const delBtn = e.target.closest('.delete-formula-btn');
-            if (delBtn) {
+            if (upBtn && !upBtn.disabled) {
+              const id = upBtn.dataset.id;
+              const pos = (state.formulas || []).findIndex(f => f.id === id);
+              if (pos > 0) {
+                const temp = state.formulas[pos];
+                state.formulas[pos] = state.formulas[pos - 1];
+                state.formulas[pos - 1] = temp;
+                renderFormulaControls();
+                renderChart();
+                persistState();
+              }
+            } else if (downBtn && !downBtn.disabled) {
+              const id = downBtn.dataset.id;
+              const pos = (state.formulas || []).findIndex(f => f.id === id);
+              if (pos >= 0 && pos < state.formulas.length - 1) {
+                const temp = state.formulas[pos];
+                state.formulas[pos] = state.formulas[pos + 1];
+                state.formulas[pos + 1] = temp;
+                renderFormulaControls();
+                renderChart();
+                persistState();
+              }
+            } else if (delBtn) {
               const id = delBtn.dataset.id;
               state.formulas = (state.formulas || []).filter(f => f.id !== id);
               renderFormulaControls();
@@ -5482,6 +6028,7 @@ function buildChartHtml({
         else rightPanel?.classList.remove('collapsed');
 
         updateBackdropState();
+        updateDisplayOptionsCollapseUI();
         setupEventListeners();
         if (typeof window.switchWorkbenchMode === 'function') {
           window.switchWorkbenchMode(state.sourceMode || 'tables');

@@ -15,6 +15,7 @@ A powerful Amplenote plugin that parses markdown tables within your notes and vi
   - Protects ISO dates (`2026-01-15`) from being mangled so they stay cleanly on category axes.
   - Strips Markdown styling (`**bold**`, `*italic*`, `[links](url)`) and HTML tags from numbers automatically.
 - 📐 **Flexible X-Axis & Observation Mapping**: Choose any table column as the X-axis label, or use **`Remove from X`** / **`Auto Row Index (1, 2, 3...)`** to chart pure numerical datasets across all columns without sacrificing an X column.
+- 📐 **Standard Measured vs Stretched Sizing**: Toggle effortlessly between **Standard Measured Size** (optimal proportions with natural 16:10 or 1:1 radial aspect ratios) and **Stretched (Fill Space)** using the 1-click canvas toolbar button or the Right Panel Display Options switch. Scoped and remembered per note.
 - 📱 **Responsive Mobile & Narrow-Screen Workbench**: Automatically collapses left and right panels on narrow screen resolutions ($\le 900\text{px}$) with an interactive backdrop overlay, mutual panel exclusivity, and fluid GPU-accelerated transitions.
 - ⚡ **High-Speed Parsing & Memory Optimization**:
   - Accelerated numeric parsing with immediate fast paths for raw numbers (>80% of data cells) and pre-compiled regex objects.
@@ -80,9 +81,9 @@ Inside the Dashboard:
 - **Left Panel (Formula Mode)**: Math Formula Studio banner, domain bounds $[x_{min}, x_{max}]$ with `▲`/`▼` steppers, sampling resolution slider ($20\text{--}600$ points), and prominent **`Generate Chart`** button.
 - **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), contextual `Reset Zoom` button, `Replay Animation` button, theme cycler, and mode-aware **Export Menu**.
 - **Right Panel**:
-  - *Tables Mode*: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with **`Select All` / `Select #1`**.
-  - *Formula Mode*: Choose curated curve presets and manage active functions $y = f(x)$ with color swatches and live syntax validation.
-  - *Shared*: Select curated color palettes and fine-tune animation easing, curve smoothing, area fills, and grid lines.
+  - *Tables Mode*: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with **`Select All` / `Select #1`**, click any series color swatch to open the interactive **Color Picker**, and use **`▲` / `▼`** buttons to reorder series (adjusting layer drawing order, bar grouping sequence, and legend hierarchy).
+  - *Formula Mode*: Choose curated curve presets, manage active functions $y = f(x)$ with interactive curve color pickers, and reorder curves with **`▲` / `▼`** controls with live syntax validation.
+  - *Shared*: Select curated color palettes and configure animation easing, legend position, and fine-tune visual parameters in the collapsible **Display Options** section (Stretch to Fill Space, Show Data Labels, Smooth Curves, Fill Area, Show Grid Lines, Show Legend).
 
 ---
 

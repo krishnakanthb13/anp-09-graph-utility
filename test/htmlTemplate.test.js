@@ -115,5 +115,79 @@ describe('buildChartHtml', () => {
     expect(html).toContain('series-checkbox');
     expect(html).toContain('max-width: 900px');
   });
+
+  it('should include graph viewport fit toggle controls for standard and stretched sizing', () => {
+    const html = buildChartHtml({
+      cleanedContent: '| Category | Amount |\n|---|---|\n| Sales | 500 |',
+      noteName: 'Fit Test Note',
+      noteUUID: 'fit-uuid-1'
+    });
+
+    expect(html).toContain('id="toggleGraphFitBtn"');
+    expect(html).toContain('id="stretchGraphToggle"');
+    expect(html).toContain('id="graphFitLabel"');
+    expect(html).toContain('is-standard');
+    expect(html).toContain('is-stretched');
+    expect(html).toContain('graphFit');
+    expect(html).toContain('toggleGraphFit');
+  });
+
+  it('should include collapsible Display Options section with accordion controls', () => {
+    const html = buildChartHtml({
+      cleanedContent: '| Category | Amount |\n|---|---|\n| Sales | 500 |',
+      noteName: 'Collapse Test Note',
+      noteUUID: 'collapse-uuid-1'
+    });
+
+    expect(html).toContain('id="displayOptionsSection"');
+    expect(html).toContain('id="toggleDisplayOptionsBtn"');
+    expect(html).toContain('id="displayOptionsContent"');
+    expect(html).toContain('collapsible-section');
+    expect(html).toContain('collapsible-header');
+    expect(html).toContain('updateDisplayOptionsCollapseUI');
+    expect(html).toContain('displayOptionsCollapsed');
+  });
+
+  it('should support individual Y-Axis series custom color pickers and persistence', () => {
+    const html = buildChartHtml({
+      cleanedContent: '| Month | Revenue | Expenses |\n|---|---|---|\n| Jan | 1000 | 600 |',
+      noteName: 'Color Picker Test Note',
+      noteUUID: 'color-uuid-1'
+    });
+
+    expect(html).toContain('series-color-picker-wrapper');
+    expect(html).toContain('series-color-input');
+    expect(html).toContain('customSeriesColors');
+    expect(html).toContain('dataset.colIdx');
+  });
+
+  it('should render mathematical function curves with matching box color pickers and clickable labels', () => {
+    const html = buildChartHtml({
+      cleanedContent: '',
+      noteName: 'Formula UI Test Note',
+      noteUUID: 'formula-uuid-1'
+    });
+
+    expect(html).toContain('formula-label');
+    expect(html).toContain('formula-active-toggle');
+    expect(html).toContain('formula-color-input');
+    expect(html).toContain('formula_cb_');
+  });
+
+  it('should include Move Up and Move Down reordering controls for series and formulas', () => {
+    const html = buildChartHtml({
+      cleanedContent: '| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |',
+      noteName: 'Reorder Test Note',
+      noteUUID: 'reorder-uuid-1'
+    });
+
+    expect(html).toContain('move-series-up-btn');
+    expect(html).toContain('move-series-down-btn');
+    expect(html).toContain('move-formula-up-btn');
+    expect(html).toContain('move-formula-down-btn');
+    expect(html).toContain('seriesOrder');
+    expect(html).toContain('series-item-actions');
+    expect(html).toContain('reorder-btn');
+  });
 });
 

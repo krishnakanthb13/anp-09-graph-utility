@@ -78,6 +78,26 @@ A responsive 3-pane data studio featuring:
   - **Waterfall Chart**: Calculates sequential step deltas and builds floating step bars `[prev, running]` with positive (green) and negative (red) coloration.
 - **In-Memory Structured Table Transposition (`transposeTableObj`)**: Transposes the structured table data matrix directly in memory, recalculating column/row counts, clean headers, and data series without risking Markdown re-parsing errors.
 - **Flexible X-Axis & Observation Engine (`updateTableMappingControls`)**: Supports both column-based category mapping and `Auto / Row Index (1, 2, 3...)` mode (`selectedXIndex = -1`). Automatically filters available Y-series to columns containing valid numerical data.
+- **Standard Measured vs Stretched Sizing Engine**:
+  - Dynamically toggles `.is-standard` (natural 16:10 or 1:1 radial aspect ratios with measured margins) and `.is-stretched` (100% full container fill) classes on `.chart-container`.
+  - Accessible via `#toggleGraphFitBtn` on the canvas toolbar and `#stretchGraphToggle` inside Display Options. State is tracked via `state.graphFit` ('standard' | 'stretched') and persisted per note.
+- **Collapsible Display Options Accordion**:
+  - Replaces flat form group lists with an interactive accordion container (`#displayOptionsSection`) controlled by `#toggleDisplayOptionsBtn`.
+  - Animates smooth chevron transitions, manages max-height containment, and persists `displayOptionsCollapsed` state across sessions.
+- **Per-Series Custom Color Pickers & Decoupled Selection Architecture**:
+  - Custom 14px square color swatches (`.series-color-swatch`) with subtle hover glow (`transform: scale(1.25)`).
+  - Checkbox selection and color customization are cleanly decoupled into distinct interactive targets (`<input type="checkbox">` vs `<div class="series-color-picker-wrapper">`), eliminating accidental deselection when modifying colors.
+  - Native `<input type="color">` elements are completely hidden (`position: absolute !important; width: 0 !important; height: 0 !important; opacity: 0 !important; visibility: hidden !important; border: 0 !important; margin: 0 !important; padding: 0 !important; pointer-events: none !important;`) with inline style safeguards, eliminating browser default button borders and white vertical pill artifacts while retaining full cross-browser `showPicker()` and `.click()` programmatic invocation.
+  - Overrides default palette colors in real-time across all chart types (Line, Bar, Area, Histogram, Waterfall, Scatter, Bubble, Radar, Pareto, Pie/Donut) and stores assignments in `state.customSeriesColors` per note.
+- **Mathematical Function Curves $y = f(x)$ UI & UX Parity**:
+  - Function curve cards feature matching 14px square swatches with interactive color pickers.
+  - Clickable `<label for="...">` elements allow toggling curve activity without having to pinpoint the checkbox.
+  - Visual opacity dimming (`.formula-card.is-inactive`, `opacity: 0.65`) gives immediate feedback when a mathematical function is excluded from the plot.
+- **Series & Function Reordering Engine (`▲` / `▼`)**:
+  - Subtle `▲` and `▼` reordering micro-buttons in each series row and formula card header.
+  - Dynamically disables buttons when at the boundary (top or bottom) of the list.
+  - Table series ordering is tracked in `state.seriesOrder`, dynamically mapped in `updateTableMappingControls()`, and used by `renderChart()` to construct Chart.js `datasets` in the exact customized sequence.
+  - Directly controls dataset drawing hierarchy (Z-index foreground/background in Line/Area plots), column order and bottom-to-top stacking in Bar charts, and legend/tooltip sequence.
 - **Smart Series Toggle**: The series header button dynamically evaluates selection state, flipping between `Select All` and `Select #1` with one click.
 - **Expanded Theme Library (10 Themes)**: Comprehensive CSS token system supporting `dark`, `light`, `midnight`, `forest`, `cyberpunk`, `dracula`, `nord`, `tokyo-night`, `solarized-light`, and `monokai`.
 - **Curated Color Palettes (11 Palettes)**: Handcrafted multi-color schemes including `modern`, `oceanic`, `aurora`, `neon`, `emerald`, `sunset`, `autumn`, `vintage`, `candy`, `pastel`, and `monochrome`.

@@ -1,3 +1,29 @@
+## v0.0.19 (2026-08-21)
+### 📐 Standard Measured vs. Stretched Viewport Fit Toggle
+- **1-Click Fit Toggle**: Added `#toggleGraphFitBtn` on the canvas toolbar and `#stretchGraphToggle` inside Display Options.
+- **Natural Aspect Ratio vs. Full Container Fill**: Effortlessly toggle between **Standard Measured Size** (natural 16:10 / 1:1 radial proportions with measured margins) and **Stretched** (100% full viewport fill).
+- **Per-Note Isolation**: Preserves `graphFit` state per note UUID across sessions.
+
+### 🗂️ Collapsible Display Options Accordion
+- **Progressive Disclosure**: Converted the flat Display Options section into an interactive collapsible accordion (`#displayOptionsSection`) with chevron animation.
+- **State Persistence**: Remembers accordion open/collapsed state (`displayOptionsCollapsed`) per note.
+
+### 🎨 Individual Y-Axis Series Custom Color Pickers
+- **Interactive Color Swatches**: Each Y-Axis series features a 14px rounded square color swatch with hover glow.
+- **Decoupled Selection & Color Customization**: Clicking the checkbox or column title toggles series selection, while clicking the swatch opens the native color picker.
+- **Live Real-Time Updating**: Instantly applies custom colors across all chart types (Line, Bar, Area, Histogram, Waterfall, Scatter, Bubble, Radar, Pareto, Pie/Donut).
+- **Zero Browser Artifacts**: Completely hid native `<input type="color">` elements with CSS and inline style safeguards, removing white vertical pill/bar (`|`) artifacts while preserving cross-browser `showPicker()` invocation.
+
+### 📐 Functions $y = f(x)$ UI & UX Parity
+- **Consistent Swatches & Color Pickers**: Math curves now share the same 14px square swatch and color picker architecture.
+- **Clickable Labels & Active State Feedback**: Added `<label for="...">` labels to toggle function curve activation and visual dimming (`opacity: 0.65`) when inactive.
+
+### ⬆️⬇️ Series & Function Reordering (`▲` / `▼`)
+- **Visual Layering & Stacking Control**: Subtle `▲` and `▼` buttons on each series item and formula card allow instant reordering.
+- **Automatic Boundary Disabling**: Dimmed/disabled when an item is already at the top or bottom.
+- **Immediate Re-indexing**: Directly controls dataset drawing sequence (Z-index foreground/background), bar chart column order and stacking, legend hierarchy, and tooltip sequence.
+- **Persistent Order**: Saves `seriesOrder` per note UUID.
+
 ## v0.0.18 (2026-08-19)
 ### 🔄 Mode-Aware Dynamic Export Menu
 - **Contextual Export Options**: The Export Dropdown automatically detects and toggles options between **Tables Mode** (`#exportTablesGroup`) and **Math Formula Mode** (`#exportFormulasGroup`).
