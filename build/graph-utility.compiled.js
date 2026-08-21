@@ -309,8 +309,7 @@ function transposeMarkdownTables(content) {
     }
     const parseCells = (rowStr) => splitTableRow(rowStr);
     const tableRows = tableLines.map(parseCells);
-    const isDelim = (r) => r.every((c) => !c || /^[\s\-:]*$/.test(c));
-    const contentRows = tableRows.filter((row) => !isDelim(row) && row.some((c) => c !== ""));
+    const contentRows = tableRows.filter((row) => !isDelimiterOrPlaceholderRow(row) && row.some((c) => c !== ""));
     if (contentRows.length === 0) return section;
     const transposedMatrix = transposeArray(contentRows);
     if (transposedMatrix.length === 0) return section;
@@ -716,6 +715,7 @@ function generateFormulaMarkdownTable(formulas = [], options = {}) {
   const points = Math.max(5, Math.min(101, options.points || 21));
   const xMin = Number.isFinite(options.xMin) ? options.xMin : -10;
   const xMax = Number.isFinite(options.xMax) ? options.xMax : 10;
+  const maxAbsY = Number.isFinite(options.maxAbsY) ? options.maxAbsY : 1e5;
   const step = (xMax - xMin) / (points - 1);
   const compiledList = normFormulas.map((f) => ({
     name: f.name.replace(/\|/g, "\\|"),
@@ -727,17 +727,17 @@ function generateFormulaMarkdownTable(formulas = [], options = {}) {
   const rows = [];
   for (let i = 0; i < points; i++) {
     const x = i === points - 1 ? xMax : xMin + i * step;
-    const cleanX = Number(x.toFixed(4));
+    const cleanX = Number(x.toFixed(6));
     const cellVals = [String(cleanX)];
     for (const item of compiledList) {
       if (item.compiled.error) {
         cellVals.push("ERR");
       } else {
         const y = item.compiled.evaluate(cleanX);
-        if (y === null || isNaN(y) || !isFinite(y)) {
+        if (y === null || isNaN(y) || !isFinite(y) || Math.abs(y) > maxAbsY) {
           cellVals.push("NaN");
         } else {
-          cellVals.push(String(Number(y.toFixed(4))));
+          cellVals.push(String(Number(y.toFixed(6))));
         }
       }
     }
@@ -748,9 +748,9 @@ ${separatorRow}
 ${rows.join("\n")}`;
 }
 
-// anp-09-graph-utility/lib/features/onEmbedCall.js
+// anp-09-graph-utility/lib/utils/noteHelper.js
 async function getNote(app, uuid) {
-  if (!uuid) return null;
+  if (!app || !uuid) return null;
   if (typeof app.findNote === "function") {
     return await app.findNote({ uuid });
   }
@@ -759,6 +759,8 @@ async function getNote(app, uuid) {
   }
   return null;
 }
+
+// anp-09-graph-utility/lib/features/onEmbedCall.js
 async function handleEmbedCall(app, actionName, payload = {}) {
   try {
     switch (actionName) {
@@ -789,7 +791,7 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         stateMap.activeNoteUUID = incoming.noteUUID;
         const noteKeys = Object.keys(stateMap.notes);
         if (noteKeys.length > 50) {
-          const sortedKeys = noteKeys.sort((a, b) => {
+          const sortedKeys = noteKeys.filter((k) => k !== stateMap.activeNoteUUID).sort((a, b) => {
             const timeA = stateMap.notes[a]?.updatedAt || 0;
             const timeB = stateMap.notes[b]?.updatedAt || 0;
             return timeA - timeB;
@@ -897,6 +899,17 @@ async function handleEmbedCall(app, actionName, payload = {}) {
         }
         const note = await getNote(app, selectedUUID);
         const markdown = await app.getNoteContent({ uuid: selectedUUID });
+        if (!markdown) {
+          return {
+            success: true,
+            noteUUID: selectedUUID,
+            noteName: note ? note.name : "Untitled Note",
+            noteTags: note ? note.tags : [],
+            cleanedContent: "",
+            transposeContent: "",
+            tables: []
+          };
+        }
         const cleanedContent = extractTablesFromMarkdown(markdown, note ? note.name : "");
         const transposeContent = transposeMarkdownTables(cleanedContent);
         const structuredTables = extractStructuredTables(markdown, note ? note.name : "");
@@ -2943,9 +2956,14 @@ function buildChartHtml({
           <div class="form-group" style="margin-top: 12px;">
             <div class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
               <span>Y-Axis Series</span>
-              <button id="selectAllSeriesBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;">
-                Select All
-              </button>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <button id="resetSeriesOrderBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;" title="Reset series order as per table columns">
+                  Reset Order
+                </button>
+                <button id="selectAllSeriesBtn" class="btn btn-icon" style="font-size: 10px; padding: 2px 6px;">
+                  Select All
+                </button>
+              </div>
             </div>
             <div id="ySeriesContainer" class="series-list"></div>
           </div>
@@ -3977,7 +3995,15 @@ function buildChartHtml({
           } else {
             const valid = state.seriesOrder.filter(idx => availableIndices.includes(idx));
             availableIndices.forEach(idx => {
-              if (!valid.includes(idx)) valid.push(idx);
+              if (!valid.includes(idx)) {
+                // When a column becomes newly available (e.g. Column 0 removed from X / Auto Index),
+                // add it at the beginning so natural column sequence is preserved
+                if (idx === 0 || (state.selectedXIndex === -1 && (valid.length === 0 || idx < valid[0]))) {
+                  valid.unshift(idx);
+                } else {
+                  valid.push(idx);
+                }
+              }
             });
             state.seriesOrder = valid;
           }
@@ -5095,7 +5121,12 @@ function buildChartHtml({
             state.selectedXIndex = 0;
             showToast('Set X-Axis to Column 1');
           } else {
+            const prevX = state.selectedXIndex;
             state.selectedXIndex = -1;
+            // When removing from X (Auto Index), prepend the removed column to the front of seriesOrder
+            if (prevX !== -1 && Array.isArray(state.seriesOrder)) {
+              state.seriesOrder = [prevX, ...state.seriesOrder.filter(i => i !== prevX)];
+            }
             showToast('Removed column from X (Auto Row Index)');
           }
           updateTableMappingControls();
@@ -5104,10 +5135,28 @@ function buildChartHtml({
 
         // X-Axis Selector
         document.getElementById('xAxisSelect')?.addEventListener('change', (e) => {
+          const prevX = state.selectedXIndex;
           const val = parseInt(e.target.value, 10);
           state.selectedXIndex = isNaN(val) ? 0 : val;
+          if (state.selectedXIndex === -1 && prevX !== -1 && Array.isArray(state.seriesOrder)) {
+            state.seriesOrder = [prevX, ...state.seriesOrder.filter(i => i !== prevX)];
+          }
           updateTableMappingControls();
           persistState();
+        });
+
+        // Reset Series Order to table column default
+        document.getElementById('resetSeriesOrderBtn')?.addEventListener('click', () => {
+          const currentTable = parsedTables[state.activeTableIndex];
+          if (!currentTable) return;
+          const availableIndices = currentTable.headers
+            .map((_, idx) => idx)
+            .filter(idx => idx !== state.selectedXIndex);
+          state.seriesOrder = [...availableIndices];
+          updateTableMappingControls();
+          renderChart();
+          persistState();
+          showToast('Series order reset as per table');
         });
 
         // Select All / Select #1 Y Series Toggle
@@ -6048,13 +6097,13 @@ function buildChartHtml({
 }
 function escapeHTML(str) {
   if (!str) return "";
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 // anp-09-graph-utility/lib/features/renderEmbed.js
 async function handleRenderEmbed(app, ...args) {
   try {
-    let noteUUID = await app.settings["Current_Note_UUID [Do not Edit!]"];
+    let noteUUID = (app.settings || {})["Current_Note_UUID [Do not Edit!]"];
     if (!noteUUID && args && args.length > 0 && typeof args[0] === "string") {
       noteUUID = args[0];
     }
@@ -6096,7 +6145,7 @@ async function handleRenderEmbed(app, ...args) {
     let transposeContent = "";
     let structuredTables = [];
     if (noteUUID) {
-      const note = typeof app.findNote === "function" ? await app.findNote({ uuid: noteUUID }) : app.notes && typeof app.notes.find === "function" ? await app.notes.find(noteUUID) : null;
+      const note = await getNote(app, noteUUID);
       if (note) {
         noteName = note.name || "Untitled Note";
         noteTags = note.tags || [];
@@ -6118,9 +6167,10 @@ async function handleRenderEmbed(app, ...args) {
     return htmlTemplate;
   } catch (error) {
     console.error("Error in handleRenderEmbed:", error);
+    const safeErrorMsg = escapeHTML(error && error.message ? error.message : String(error));
     return `<div style="padding: 20px; font-family: sans-serif; color: #d9534f;">
       <h2>Error rendering Graph Utility:</h2>
-      <p>${error.message}</p>
+      <p>${safeErrorMsg}</p>
     </div>`;
   }
 }

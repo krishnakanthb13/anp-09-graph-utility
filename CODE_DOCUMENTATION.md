@@ -93,24 +93,32 @@ A responsive 3-pane data studio featuring:
   - Function curve cards feature matching 14px square swatches with interactive color pickers.
   - Clickable `<label for="...">` elements allow toggling curve activity without having to pinpoint the checkbox.
   - Visual opacity dimming (`.formula-card.is-inactive`, `opacity: 0.65`) gives immediate feedback when a mathematical function is excluded from the plot.
-- **Series & Function Reordering Engine (`▲` / `▼`)**:
+- **Series & Function Reordering Engine (`▲` / `▼`) & Natural Prepend**:
   - Subtle `▲` and `▼` reordering micro-buttons in each series row and formula card header.
   - Dynamically disables buttons when at the boundary (top or bottom) of the list.
+  - When a column is un-selected from the X-Axis (`selectedXIndex = -1` / "Remove from X"), the column is prepended to the front (`[prevX, ...seriesOrder]`) rather than appended at the end, keeping Column 1 at the top of the series list.
   - Table series ordering is tracked in `state.seriesOrder`, dynamically mapped in `updateTableMappingControls()`, and used by `renderChart()` to construct Chart.js `datasets` in the exact customized sequence.
   - Directly controls dataset drawing hierarchy (Z-index foreground/background in Line/Area plots), column order and bottom-to-top stacking in Bar charts, and legend/tooltip sequence.
+- **Reset Series Order (`#resetSeriesOrderBtn`)**:
+  - 1-click header button that resets `state.seriesOrder` back to the default ascending column order of the underlying markdown table (`[...availableIndices]`), immediately refreshing UI swatches, reorder arrow states, and chart layer sequence.
 - **Smart Series Toggle**: The series header button dynamically evaluates selection state, flipping between `Select All` and `Select #1` with one click.
 - **Expanded Theme Library (10 Themes)**: Comprehensive CSS token system supporting `dark`, `light`, `midnight`, `forest`, `cyberpunk`, `dracula`, `nord`, `tokyo-night`, `solarized-light`, and `monokai`.
 - **Curated Color Palettes (11 Palettes)**: Handcrafted multi-color schemes including `modern`, `oceanic`, `aurora`, `neon`, `emerald`, `sunset`, `autumn`, `vintage`, `candy`, `pastel`, and `monochrome`.
 - **Chart.js Rendering Engine (`renderChart`)**: Maps active data series to Chart.js datasets with dynamic color palettes, animation easing, `spanGaps: true`, and custom background canvas drawing (`customCanvasBackgroundColor`) for pristine image exports.
 
 ### 5. Utilities (`lib/utils/`)
-- `markdownParser.js`: Heading-aware table extraction (`extractStructuredTables`, `extractTablesFromMarkdown`), fast-path string tokenization in `splitTableRow()` for rows without backslashes, in-place column normalization in `removeEmptyRowsAndColumns()`, and header sanitization (`cleanHeaderName`).
-- `tableTranspose.js`: Pure matrix transposition (`transposeArray`, `transposeStructuredTable`, `transposeMarkdownTables`) using a single-pass O(N) linear algorithm with pre-allocated result matrices (`new Array(maxCols)`), completely eliminating call-stack overflow risks on massive datasets.
+- `markdownParser.js`: Heading-aware table extraction (`extractStructuredTables`, `extractTablesFromMarkdown`), fast-path string tokenization in `splitTableRow()` for rows without backslashes, in-place column normalization in `removeEmptyRowsAndColumns()`, header sanitization (`cleanHeaderName`), and canonical delimiter detection (`isDelimiterOrPlaceholderRow`).
+- `tableTranspose.js`: Pure matrix transposition (`transposeArray`, `transposeStructuredTable`, `transposeMarkdownTables`) using a single-pass O(N) linear algorithm with pre-allocated result matrices (`new Array(maxCols)`), using unified delimiter row filtering from `markdownParser.js`.
+- `noteHelper.js`: Robust note retrieval helper (`getNote(app, uuid)`) abstracting `app.findNote({ uuid })` with graceful fallback to `app.notes.find(uuid)`.
+- `dateTime.js`: Generates unambiguous 8-digit `YYYYMMDD` (e.g. `20260821`) and 6-digit `YYMMDD` along with `HHMMSS` for audit stamps and export naming.
 - `csvConverter.js`: Converts parsed table rows into RFC 4180 standard CSV strings with internal quote escaping (`""`).
 - `mathEvaluator.js`: Pure mathematical lexer, Pratt/recursive-descent parser, and AST evaluator.
-- `formulaSampler.js`: Multi-curve domain sampler and Markdown table exporter.
+- `formulaSampler.js`: Multi-curve domain sampler and Markdown table exporter with standardized 6-decimal coordinate precision and `maxAbsY` asymptote clamping.
 
 ## Key Design Patterns
 
 - **Vanilla JS & GPU Optimization**: The embed avoids heavy frameworks like React to ensure rapid loading, no bundle bloat, and minimal memory footprint inside the Amplenote container, with CSS `will-change: width, transform` for 60fps animations.
 - **Offline Resilience**: The "Download Interactive HTML" feature exports the full `document.documentElement.outerHTML`, dynamically replacing the `<script id="plugin-payload">` JSON content using dynamically assembled tag boundaries (`'<' + '/script>'`) so the exported file retains the exact state and theme offline without script breakout.
+- **Defensive Error Sanitization**: All error strings rendered in HTML fallbacks (`renderEmbed.js`) are escaped via `escapeHTML()` to prevent template breakout and injection vulnerabilities.
+- **Comprehensive Test Harness**: Complete 11-suite Jest test harness (`npm test`) providing 100% test pass coverage across 87 tests covering lifecycle methods, mathematical parsing, UI generation, and markdown parsing.
+

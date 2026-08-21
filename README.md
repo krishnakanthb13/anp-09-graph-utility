@@ -81,7 +81,7 @@ Inside the Dashboard:
 - **Left Panel (Formula Mode)**: Math Formula Studio banner, domain bounds $[x_{min}, x_{max}]$ with `▲`/`▼` steppers, sampling resolution slider ($20\text{--}600$ points), and prominent **`Generate Chart`** button.
 - **Center Canvas**: Interactive Chart.js canvas with live stat chips (Rows, Cols, Series), contextual `Reset Zoom` button, `Replay Animation` button, theme cycler, and mode-aware **Export Menu**.
 - **Right Panel**:
-  - *Tables Mode*: Select X-axis label column (or click **`Remove from X`** for auto row indexing), toggle Y-axis series with **`Select All` / `Select #1`**, click any series color swatch to open the interactive **Color Picker**, and use **`▲` / `▼`** buttons to reorder series (adjusting layer drawing order, bar grouping sequence, and legend hierarchy).
+  - *Tables Mode*: Select X-axis label column (or click **`Remove from X`** / **`Auto Index (No X)`** to auto-index and naturally place Column 1 at the beginning of the series list), toggle Y-axis series with **`Select All` / `Select #1`**, click **`Reset Order`** to restore natural table column sequence in 1 click, click any series color swatch to open the interactive **Color Picker**, and use **`▲` / `▼`** buttons to reorder series (adjusting layer drawing order, bar grouping sequence, and legend hierarchy).
   - *Formula Mode*: Choose curated curve presets, manage active functions $y = f(x)$ with interactive curve color pickers, and reorder curves with **`▲` / `▼`** controls with live syntax validation.
   - *Shared*: Select curated color palettes and configure animation easing, legend position, and fine-tune visual parameters in the collapsible **Display Options** section (Stretch to Fill Space, Show Data Labels, Smooth Curves, Fill Area, Show Grid Lines, Show Legend).
 
@@ -92,5 +92,5 @@ Inside the Dashboard:
 - `Graph Utility.js`: Plugin entry point exposing `appOption`, `noteOption`, `renderEmbed`, and `onEmbedCall` bridge.
 - `lib/features/`: Modular handlers for launching (`launcher.js`), host bridge actions (`onEmbedCall.js`), and embed generation (`renderEmbed.js`).
 - `lib/ui/htmlTemplate.js`: Responsive 3-pane interactive dashboard with Chart.js, embedded SVG/PNG favicon, math plotting engine, and debounced per-note state persistence.
-- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), structured & array transposition (`tableTranspose.js`), CSV conversion (`csvConverter.js`), safe math parsing & evaluation (`mathEvaluator.js`), and domain sampling (`formulaSampler.js`).
+- `lib/utils/`: Pure utilities for heading-aware parsing (`markdownParser.js`), structured & array transposition (`tableTranspose.js`), CSV conversion (`csvConverter.js`), safe math parsing & evaluation (`mathEvaluator.js`), domain sampling (`formulaSampler.js`), shared note retrieval (`noteHelper.js`), and date formatting (`dateTime.js`).
 - `build/graph-utility.compiled.js`: Self-contained IIFE bundled with `esbuild`.

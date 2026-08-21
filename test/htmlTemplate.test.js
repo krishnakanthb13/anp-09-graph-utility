@@ -30,6 +30,7 @@ describe('buildChartHtml', () => {
     expect(html).toContain('mainChart');
     expect(html).toContain('saveImageToNoteBtn');
     expect(html).toContain('selectAllSeriesBtn');
+    expect(html).toContain('resetSeriesOrderBtn');
     expect(html).toContain('amplenote_graph_utility_state');
     expect(html).toContain('theme-dracula');
     expect(html).toContain('theme-nord');
